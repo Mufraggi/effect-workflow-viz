@@ -14,11 +14,13 @@ export default defineConfig({
     tailwindcss()
   ],
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-      "@template/domain": path.resolve(__dirname, "../domain/src/index.ts"),
-      "@template/api-contract": path.resolve(__dirname, "../api-contract/src/index.ts")
-    }
+    alias: [
+      { find: /^@template\/domain\/(.*)$/, replacement: path.resolve(__dirname, "../domain/src/$1.ts") },
+      { find: /^@template\/api-contract\/(.*)$/, replacement: path.resolve(__dirname, "../api-contract/src/$1.ts") },
+      { find: "@template/domain", replacement: path.resolve(__dirname, "../domain/src/index.ts") },
+      { find: "@template/api-contract", replacement: path.resolve(__dirname, "../api-contract/src/index.ts") },
+      { find: "@", replacement: path.resolve(__dirname, "./src") }
+    ]
   },
   server: {
     port: 5173

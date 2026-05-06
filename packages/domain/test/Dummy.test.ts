@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { UserId } from "../src/index.js"
+import { UserId } from "../src/UserId.js"
 
 describe("domain", () => {
   it("brands a UserId", () => {

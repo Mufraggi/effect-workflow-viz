@@ -1,6 +1,6 @@
 import { AtomHttpApi, Result, useAtomValue } from "@effect-atom/atom-react"
 import { FetchHttpClient } from "@effect/platform"
-import { Api } from "@template/api-contract"
+import { Api } from "@template/api-contract/Api"
 
 class ApiClient extends AtomHttpApi.Tag<ApiClient>()("ApiClient", {
   api: Api,

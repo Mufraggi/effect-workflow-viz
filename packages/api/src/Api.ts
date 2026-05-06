@@ -1,5 +1,5 @@
 import { HttpApiBuilder } from "@effect/platform"
-import { Api } from "@template/api-contract"
+import { Api } from "@template/api-contract/Api"
 import { Effect, Layer } from "effect"
 
 const HealthLive = HttpApiBuilder.group(Api, "health", (handlers) =>

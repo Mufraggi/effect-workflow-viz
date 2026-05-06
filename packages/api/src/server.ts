@@ -1,6 +1,6 @@
 import { HttpApiBuilder, HttpMiddleware, HttpServer } from "@effect/platform"
 import { NodeHttpServer, NodeRuntime } from "@effect/platform-node"
-import { PgLive } from "@template/database"
+import { PgLive } from "@template/database/PgLive"
 import { Layer } from "effect"
 import { createServer } from "node:http"
 import { ApiLive } from "./Api.js"
