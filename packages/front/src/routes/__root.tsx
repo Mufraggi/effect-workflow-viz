@@ -8,15 +8,22 @@ export const Route = createRootRoute({
 function RootComponent() {
   return (
     <>
-      <nav style={{ display: "flex", gap: "1rem", padding: "1rem" }}>
-        <Link to="/" activeProps={{ style: { fontWeight: "bold" } }}>
+      <nav className="flex gap-4 px-6 py-4 border-b border-border bg-card">
+        <Link
+          to="/"
+          className="text-foreground hover:text-primary transition"
+          activeProps={{ className: "text-primary font-semibold" }}
+        >
           Home
         </Link>
-        <Link to="/about" activeProps={{ style: { fontWeight: "bold" } }}>
+        <Link
+          to="/about"
+          className="text-foreground hover:text-primary transition"
+          activeProps={{ className: "text-primary font-semibold" }}
+        >
           About
         </Link>
       </nav>
-      <hr />
       <Outlet />
       <TanStackRouterDevtools />
     </>

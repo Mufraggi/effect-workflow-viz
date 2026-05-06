@@ -6,9 +6,9 @@ export const Route = createFileRoute("/about")({
 
 function AboutComponent() {
   return (
-    <main style={{ padding: "1rem" }}>
-      <h1>About</h1>
-      <p>effect-workflow-viz frontend.</p>
+    <main className="p-8">
+      <h1 className="text-3xl font-serif font-semibold mb-4">About</h1>
+      <p className="text-muted-foreground">effect-workflow-viz frontend.</p>
     </main>
   )
 }

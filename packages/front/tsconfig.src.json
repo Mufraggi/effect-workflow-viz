@@ -9,6 +9,14 @@
     "types": [],
     "outDir": "build/src",
     "tsBuildInfoFile": ".tsbuildinfo/src.tsbuildinfo",
-    "rootDir": "src"
+    "rootDir": "src",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@template/domain": ["../domain/src/index.js"],
+      "@template/domain/*": ["../domain/src/*.js"],
+      "@template/api-contract": ["../api-contract/src/index.js"],
+      "@template/api-contract/*": ["../api-contract/src/*.js"]
+    }
   }
 }
