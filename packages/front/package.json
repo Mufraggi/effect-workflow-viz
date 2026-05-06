@@ -17,6 +17,8 @@
     "@effect-atom/atom-react": "latest",
     "@effect/platform": "latest",
     "@effect/platform-browser": "latest",
+    "@tanstack/react-router": "^1.169.2",
+    "@tanstack/react-router-devtools": "^1.166.13",
     "@template/api-contract": "workspace:^",
     "@template/domain": "workspace:^",
     "effect": "latest",
@@ -24,6 +26,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@tanstack/router-plugin": "^1.167.34",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
