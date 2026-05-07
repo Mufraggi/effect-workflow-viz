@@ -2,13 +2,23 @@ export * as Pagination from "./Pagination.js"
 
 export * as UserId from "./UserId.js"
 
+export * as MessageId from "./run/MessageId.js"
+
 export * as RunDetail from "./run/RunDetail.js"
+
+export * as RunId from "./run/RunId.js"
 
 export * as RunStatus from "./run/RunStatus.js"
 
 export * as RunSummary from "./run/RunSummary.js"
 
+export * as ShardId from "./run/ShardId.js"
+
+export * as TraceId from "./run/TraceId.js"
+
 export * as errors from "./run/errors.js"
+
+export * as WorkflowName from "./workflow/WorkflowName.js"
 
 export * as WorkflowReader from "./workflow/WorkflowReader.js"
 

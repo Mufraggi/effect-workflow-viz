@@ -1,21 +1,23 @@
 import { SqlClient } from "@effect/sql"
-import { WorkflowReader } from "@template/domain/workflow/WorkflowReader"
+import { MessageId } from "@template/domain/run/MessageId"
+import { TraceId } from "@template/domain/run/TraceId"
+import type { WorkflowName } from "@template/domain/workflow/WorkflowName"
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql"
 import { Effect, Either, Layer } from "effect"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { WorkflowReaderLive } from "../src/repository/workflowReader/implLive.js"
+import { WorkflowReader } from "../src/repository/workflowReader/WorkflowReader.js"
 import { applyClusterSchema, sqlLayerFor, startPgContainer } from "./PgTestContainer.js"
 
 const TEST_TIMEOUT = 90_000
 
-const PARENT_ID = "100000000000000001"
-const CHILD_A_ID = "100000000000000002"
-const CHILD_B_ID = "100000000000000003"
-const FAILED_ID = "100000000000000004"
-const RUNNING_ID = "100000000000000005"
-const ENTITY_ID = "100000000000000006"
-const TRACE_PARENT = "abc123abc123abc123abc123abc12300"
-const TRACE_OTHER = "ffffffffffffffffffffffffffffffff"
+const PARENT_ID = MessageId.make("100000000000000001")
+const CHILD_A_ID = MessageId.make("100000000000000002")
+const CHILD_B_ID = MessageId.make("100000000000000003")
+const FAILED_ID = MessageId.make("100000000000000004")
+const RUNNING_ID = MessageId.make("100000000000000005")
+const ENTITY_ID = MessageId.make("100000000000000006")
+const TRACE_PARENT = TraceId.make("abc123abc123abc123abc123abc12300")
+const TRACE_OTHER = TraceId.make("ffffffffffffffffffffffffffffffff")
 
 const successExit = JSON.stringify({
   _tag: "Success",
@@ -67,7 +69,10 @@ describe("WorkflowReader (integration)", () => {
 
   const buildLayer = (c: StartedPostgreSqlContainer) => {
     const sqlLayer = Layer.orDie(sqlLayerFor(c))
-    return Layer.merge(sqlLayer, WorkflowReaderLive.pipe(Layer.provide(sqlLayer)))
+    return Layer.merge(
+      sqlLayer,
+      WorkflowReader.DefaultWithoutDependencies.pipe(Layer.provide(sqlLayer))
+    )
   }
 
   beforeAll(async () => {
@@ -132,7 +137,10 @@ describe("WorkflowReader (integration)", () => {
 
   it("listRuns filters by workflowName prefix", async () => {
     const result = await Effect.runPromise(
-      Effect.flatMap(WorkflowReader, (r) => r.listRuns({ workflowName: "OrderFlow" }, { limit: 50, before: null }))
+      Effect.flatMap(
+        WorkflowReader,
+        (r) => r.listRuns({ workflowName: "OrderFlow" as WorkflowName }, { limit: 50, before: null })
+      )
         .pipe(Effect.provide(appLayer))
     )
     const names = new Set(result.items.map((r) => r.workflowName))
@@ -153,7 +161,7 @@ describe("WorkflowReader (integration)", () => {
 
   it("getRun fails with RunNotFound for unknown id", async () => {
     const exit = await Effect.runPromise(
-      Effect.flatMap(WorkflowReader, (r) => r.getRun("999999999999999999")).pipe(
+      Effect.flatMap(WorkflowReader, (r) => r.getRun("999999999999999999" as MessageId)).pipe(
         Effect.provide(appLayer),
         Effect.either
       )
@@ -167,7 +175,10 @@ describe("WorkflowReader (integration)", () => {
 
   it("getRun fails with RunNotFound for malformed id", async () => {
     const exit = await Effect.runPromise(
-      Effect.flatMap(WorkflowReader, (r) => r.getRun("not-a-bigint")).pipe(Effect.provide(appLayer), Effect.either)
+      Effect.flatMap(WorkflowReader, (r) => r.getRun("not-a-bigint" as MessageId)).pipe(
+        Effect.provide(appLayer),
+        Effect.either
+      )
     )
     expect(Either.isLeft(exit)).toBe(true)
   })
