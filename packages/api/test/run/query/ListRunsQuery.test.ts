@@ -10,8 +10,7 @@ const queryLayer = ListRunsQuery.DefaultWithoutDependencies.pipe(
   Layer.provide(InMemoryWorkflowReaderLive(seed))
 )
 
-const run = <A, E>(eff: Effect.Effect<A, E, ListRunsQuery>) =>
-  Effect.runPromise(eff.pipe(Effect.provide(queryLayer)))
+const run = <A, E>(eff: Effect.Effect<A, E, ListRunsQuery>) => Effect.runPromise(eff.pipe(Effect.provide(queryLayer)))
 
 describe("ListRunsQuery", () => {
   it("returns every seeded run when no filter is provided", async () => {

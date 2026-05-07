@@ -1,7 +1,7 @@
 import { WorkflowReader } from "@template/database/repository/workflowReader/WorkflowReader"
 import { RunNotFound } from "@template/domain/run/errors"
 import type { MessageId } from "@template/domain/run/MessageId"
-import { RunDetail } from "@template/domain/run/RunDetail"
+import type { RunDetail } from "@template/domain/run/RunDetail"
 import { RunSummary } from "@template/domain/run/RunSummary"
 import type { TraceId } from "@template/domain/run/TraceId"
 import { Effect, Layer } from "effect"
