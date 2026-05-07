@@ -1,1 +1,1 @@
-export { App } from "./App.js"
+export {}

@@ -12,7 +12,7 @@
     "rootDir": "src",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
+      "@/*": ["./src/*.js"],
       "@template/domain": ["../domain/src/index.js"],
       "@template/domain/*": ["../domain/src/*.js"],
       "@template/api-contract": ["../api-contract/src/index.js"],

@@ -12,6 +12,6 @@ export class RunSummary extends Schema.Class<RunSummary>("RunSummary")({
   runId: RunId,
   shardId: ShardId,
   traceId: Schema.NullOr(TraceId),
-  startedAtProxy: Schema.NullOr(Schema.DateFromSelf),
+  startedAtProxy: Schema.NullOr(Schema.DateFromString),
   status: RunStatus
 }) {}

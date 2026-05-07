@@ -7,7 +7,7 @@ import pgTypes from "pg-types"
 
 pgTypes.setTypeParser(1082, identity) // DATE
 pgTypes.setTypeParser(1114, identity) // TIMESTAMP
-pgTypes.setTypeParser(1184, identity) // TIMESTAMPTZ
+pgTypes.setTypeParser(1184, identity)
 
 export const PgLive = Layer.unwrapEffect(
   Effect.gen(function*() {
@@ -16,9 +16,13 @@ export const PgLive = Layer.unwrapEffect(
     const port = yield* Config.string("DB_PORT")
     const password = yield* Config.string("DB_PWD")
     const dbName = yield* Config.string("DB_NAME")
+    const env = yield* Config.string("ENV")
 
     const url = `postgres://${username}:${password}@${database}:${port}/${dbName}`
-    const ssl = false
+    let ssl = false
+    if (env === "production" || database.includes("azure.com")) {
+      ssl = true
+    }
 
     return PgClient.layer({
       url: Redacted.make(url),
@@ -26,6 +30,11 @@ export const PgLive = Layer.unwrapEffect(
       maxConnections: 5,
       transformQueryNames: String.camelToSnake,
       transformResultNames: String.snakeToCamel,
+      // - 114: JSON (return as string instead of parsed object)
+      // - 1082: DATE
+      // - 1114: TIMESTAMP WITHOUT TIME ZONE
+      // - 1184: TIMESTAMP WITH TIME ZONE
+      // - 3802: JSONB (return as string instead of parsed object)
       types: pgTypes
     })
   })
