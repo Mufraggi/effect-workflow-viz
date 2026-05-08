@@ -7,8 +7,7 @@ const dateFmt = new Intl.DateTimeFormat(undefined, {
   timeStyle: "medium"
 })
 
-const truncate = (s: string, n: number) =>
-  s.length <= n + 3 ? s : `${s.slice(0, n)}…`
+const truncate = (s: string, n: number) => s.length <= n + 3 ? s : `${s.slice(0, n)}…`
 
 export const runColumns: Array<ColumnDef<RunSummary>> = [
   {
@@ -19,9 +18,7 @@ export const runColumns: Array<ColumnDef<RunSummary>> = [
   {
     accessorKey: "runId",
     header: "Run ID",
-    cell: ({ row }) => (
-      <span className="font-mono text-xs text-muted-foreground">{row.original.runId}</span>
-    )
+    cell: ({ row }) => <span className="font-mono text-xs text-muted-foreground">{row.original.runId}</span>
   },
   {
     accessorKey: "status",

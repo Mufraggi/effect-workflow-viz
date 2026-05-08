@@ -10,6 +10,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "tsc -b tsconfig.json",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint-fix": "pnpm lint --fix",
     "test": "vitest",
     "coverage": "vitest --coverage"
   },

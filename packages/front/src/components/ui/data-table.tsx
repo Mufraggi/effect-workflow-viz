@@ -1,26 +1,16 @@
-import {
-  type ColumnDef,
-  flexRender,
-  getCoreRowModel,
-  useReactTable
-} from "@tanstack/react-table"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 
 interface DataTableProps<TData, TValue> {
   columns: Array<ColumnDef<TData, TValue>>
   data: Array<TData>
+  onRowClick?: (row: TData) => void
 }
 
 export function DataTable<TData, TValue>({
   columns,
-  data
+  data,
+  onRowClick
 }: DataTableProps<TData, TValue>) {
   const table = useReactTable({
     data,
@@ -47,7 +37,11 @@ export function DataTable<TData, TValue>({
         <TableBody>
           {table.getRowModel().rows.length
             ? table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
+              <TableRow
+                key={row.id}
+                className={onRowClick ? "cursor-pointer" : undefined}
+                onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+              >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
