@@ -22,6 +22,11 @@ export * as WorkflowName from "./workflow/WorkflowName.js"
 
 export * as WorkflowReader from "./workflow/WorkflowReader.js"
 
+/**
+ * Walk a Cause tree (depth-first, left first) and return the first leaf node
+ * matching the given tag. Returns the raw object so callers can read its data
+ * (`error` for Fail, `defect` for Die, `fiberId` for Interrupt).
+ */
 export * as exit from "./workflow/decode/exit.js"
 
 export * as status from "./workflow/decode/status.js"
