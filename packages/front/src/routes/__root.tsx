@@ -8,13 +8,14 @@ export const Route = createRootRoute({
 function RootComponent() {
   return (
     <>
-      <nav className="flex gap-4 px-6 py-4 border-b border-border bg-card">
+      <nav className="flex gap-4 px-6 py-3 border-b border-border bg-card text-sm">
         <Link
           to="/"
           className="text-foreground hover:text-primary transition"
           activeProps={{ className: "text-primary font-semibold" }}
+          activeOptions={{ exact: true }}
         >
-          Home
+          Runs
         </Link>
         <Link
           to="/about"

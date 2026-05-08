@@ -1,16 +1,25 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { cn } from "@/lib/utils"
 import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 
 interface DataTableProps<TData, TValue> {
   columns: Array<ColumnDef<TData, TValue>>
   data: Array<TData>
   onRowClick?: (row: TData) => void
+  onRowMouseEnter?: (row: TData) => void
+  onRowMouseLeave?: (row: TData) => void
+  getRowClassName?: (row: TData) => string | undefined
+  emptyMessage?: string
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
-  onRowClick
+  emptyMessage = "No runs.",
+  getRowClassName,
+  onRowClick,
+  onRowMouseEnter,
+  onRowMouseLeave
 }: DataTableProps<TData, TValue>) {
   const table = useReactTable({
     data,
@@ -26,9 +35,7 @@ export function DataTable<TData, TValue>({
             <TableRow key={hg.id}>
               {hg.headers.map((h) => (
                 <TableHead key={h.id}>
-                  {h.isPlaceholder
-                    ? null
-                    : flexRender(h.column.columnDef.header, h.getContext())}
+                  {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
                 </TableHead>
               ))}
             </TableRow>
@@ -39,8 +46,10 @@ export function DataTable<TData, TValue>({
             ? table.getRowModel().rows.map((row) => (
               <TableRow
                 key={row.id}
-                className={onRowClick ? "cursor-pointer" : undefined}
+                className={cn(onRowClick && "cursor-pointer", getRowClassName?.(row.original))}
                 onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                onMouseEnter={onRowMouseEnter ? () => onRowMouseEnter(row.original) : undefined}
+                onMouseLeave={onRowMouseLeave ? () => onRowMouseLeave(row.original) : undefined}
               >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
@@ -52,7 +61,7 @@ export function DataTable<TData, TValue>({
             : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No runs.
+                  {emptyMessage}
                 </TableCell>
               </TableRow>
             )}
