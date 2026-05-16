@@ -53,4 +53,4 @@ export const authDbTestLayer: Layer.Layer<AuthDb, never, never> = Layer.effect(
     yield* applySchema
     return sql
   })
-).pipe(Layer.provide(sqliteMemoryLayer))
+).pipe(Layer.provide(sqliteMemoryLayer), Layer.orDie)
