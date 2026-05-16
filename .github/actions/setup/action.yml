@@ -19,3 +19,6 @@ runs:
     - name: Install dependencies
       shell: bash
       run: pnpm install
+    - name: Rebuild native addons
+      shell: bash
+      run: pnpm rebuild better-sqlite3
