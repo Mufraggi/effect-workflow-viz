@@ -4,7 +4,7 @@ inputs:
   node-version:
     description: The version of Node.js to install
     required: true
-    default: 24.5.0
+    default: "22"
 
 runs:
   using: composite
@@ -19,6 +19,3 @@ runs:
     - name: Install dependencies
       shell: bash
       run: pnpm install
-    - name: Rebuild native addons
-      shell: bash
-      run: pnpm rebuild better-sqlite3
