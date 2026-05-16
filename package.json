@@ -47,6 +47,7 @@
     "vitest": "^3.2.0"
   },
   "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3"],
     "patchedDependencies": {}
   }
 }
