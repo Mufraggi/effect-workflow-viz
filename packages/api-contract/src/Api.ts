@@ -1,6 +1,7 @@
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "@effect/platform"
 import { UserId } from "@template/domain/UserId"
 import { Schema } from "effect"
+import { AuthGroup } from "./AuthGroup.js"
 import { RunsGroup } from "./RunsGroup.js"
 
 export class HealthGroup extends HttpApiGroup.make("health")
@@ -11,4 +12,4 @@ export class HealthGroup extends HttpApiGroup.make("health")
   )
 {}
 
-export class Api extends HttpApi.make("api").add(HealthGroup).add(RunsGroup) {}
+export class Api extends HttpApi.make("api").add(HealthGroup).add(RunsGroup).add(AuthGroup) {}

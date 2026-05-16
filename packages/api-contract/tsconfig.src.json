@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "include": ["src"],
   "references": [
+    { "path": "../auth/tsconfig.src.json" },
     { "path": "../domain" }
   ],
   "compilerOptions": {

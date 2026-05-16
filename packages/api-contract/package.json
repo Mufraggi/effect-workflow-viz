@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@effect/platform": "latest",
+    "@template/auth": "workspace:^",
     "@template/domain": "workspace:^",
     "effect": "latest"
   },

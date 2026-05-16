@@ -6,6 +6,7 @@
     { "path": "packages/api-contract" },
     { "path": "packages/database" },
     { "path": "packages/api" },
+    { "path": "packages/auth" },
     { "path": "packages/front" }
   ]
 }

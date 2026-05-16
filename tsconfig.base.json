@@ -50,6 +50,9 @@
       "@template/api": ["./packages/api/src/index.js"],
       "@template/api/*": ["./packages/api/src/*.js"],
       "@template/api/test/*": ["./packages/api/test/*.js"],
+      "@template/auth": ["./packages/auth/src/index.js"],
+      "@template/auth/*": ["./packages/auth/src/*.js"],
+      "@template/auth/test/*": ["./packages/auth/test/*.js"],
       "@template/front": ["./packages/front/src/index.js"],
       "@template/front/*": ["./packages/front/src/*.js"],
       "@template/front/test/*": ["./packages/front/test/*.js"]

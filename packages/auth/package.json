@@ -1,20 +1,19 @@
 {
-  "name": "@template/api",
+  "name": "@template/auth",
   "version": "0.0.0",
   "type": "module",
   "license": "MIT",
-  "description": "HTTP API server",
+  "description": "SQLite-based authentication layer",
   "repository": {
     "type": "git",
     "url": "<PLACEHOLDER>",
-    "directory": "packages/api"
+    "directory": "packages/auth"
   },
   "publishConfig": {
     "access": "public",
     "directory": "dist"
   },
   "scripts": {
-    "dev": "tsx --watch src/server.ts",
     "codegen": "build-utils prepare-v2",
     "build": "pnpm build-esm && pnpm build-annotate && pnpm build-cjs && build-utils pack-v2",
     "build-esm": "tsc -b tsconfig.build.json",
@@ -27,10 +26,8 @@
   "dependencies": {
     "@effect/platform": "latest",
     "@effect/platform-node": "latest",
-    "@template/api-contract": "workspace:^",
-    "@template/auth": "workspace:^",
-    "@template/database": "workspace:^",
-    "@template/domain": "workspace:^",
+    "@effect/sql": "latest",
+    "@effect/sql-sqlite-node": "latest",
     "effect": "latest",
     "oslo": "^1.2.1"
   },
