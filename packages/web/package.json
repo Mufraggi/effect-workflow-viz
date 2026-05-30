@@ -1,0 +1,25 @@
+{
+  "name": "@template/web",
+  "version": "0.0.0",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "description": "Remix 3 web application",
+  "scripts": {
+    "dev": "tsx --watch server.ts",
+    "start": "tsx server.ts",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@template/api": "workspace:^",
+    "@template/api-contract": "workspace:^",
+    "@template/database": "workspace:^",
+    "@template/domain": "workspace:^",
+    "effect": "latest",
+    "pg": "^8.16.3",
+    "remix": "3.0.0-beta.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}

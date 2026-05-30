@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ESNext",
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "remix/ui",
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@template/domain": ["../domain/src/index.ts"],
+      "@template/domain/*": ["../domain/src/*.ts"],
+      "@template/api-contract": ["../api-contract/src/index.ts"],
+      "@template/api-contract/*": ["../api-contract/src/*.ts"],
+      "@template/database": ["../database/src/index.ts"],
+      "@template/database/*": ["../database/src/*.ts"],
+      "@template/api": ["../api/src/index.ts"],
+      "@template/api/*": ["../api/src/*.ts"]
+    }
+  },
+  "include": ["app", "server.ts"],
+  "exclude": ["dist"]
+}

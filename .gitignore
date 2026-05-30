@@ -15,3 +15,8 @@ scratchpad/*
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Agent skills (installed locally via `npx skills`, not versioned)
+.claude/
+.agents/
+skills-lock.json
