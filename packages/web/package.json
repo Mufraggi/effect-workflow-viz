@@ -13,6 +13,7 @@
   "dependencies": {
     "@template/api": "workspace:^",
     "@template/api-contract": "workspace:^",
+    "@template/auth": "workspace:^",
     "@template/database": "workspace:^",
     "@template/domain": "workspace:^",
     "effect": "latest",

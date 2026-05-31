@@ -22,6 +22,8 @@
       "@template/api-contract/*": ["../api-contract/src/*.ts"],
       "@template/database": ["../database/src/index.ts"],
       "@template/database/*": ["../database/src/*.ts"],
+      "@template/auth": ["../auth/src/index.ts"],
+      "@template/auth/*": ["../auth/src/*.ts"],
       "@template/api": ["../api/src/index.ts"],
       "@template/api/*": ["../api/src/*.ts"]
     }

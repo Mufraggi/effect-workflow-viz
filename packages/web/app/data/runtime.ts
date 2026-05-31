@@ -1,6 +1,7 @@
 import { GetChildRunsQuery } from "@template/api/run/query/GetChildRunsQuery"
 import { GetRunQuery } from "@template/api/run/query/GetRunQuery"
 import { ListRunsQuery } from "@template/api/run/query/ListRunsQuery"
+import { AuthRepository } from "@template/auth/AuthRepository"
 import { PgLive } from "@template/database/PgLive"
 import { Layer, ManagedRuntime } from "effect"
 
@@ -11,11 +12,18 @@ import { Layer, ManagedRuntime } from "effect"
  * on `WorkflowReader`, which in turn needs the Postgres client provided by `PgLive`.
  * Providing `PgLive` once here gives every loader a single shared connection pool.
  */
-const AppLayer = Layer.mergeAll(
+const ReadLayer = Layer.mergeAll(
   ListRunsQuery.Default,
   GetRunQuery.Default,
   GetChildRunsQuery.Default
 ).pipe(Layer.provide(PgLive))
+
+/**
+ * Auth lives in its own writable SQLite DB (kept separate from the read-only
+ * Postgres workflow DB). `AuthRepository.Default` already bundles `SqliteLive`
+ * via its declared `dependencies`.
+ */
+const AppLayer = Layer.mergeAll(ReadLayer, AuthRepository.Default)
 
 /**
  * A long-lived Effect runtime. Built once at module load and reused for every

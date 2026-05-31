@@ -12,6 +12,10 @@ import { get, route } from "remix/routes"
 export const routes = route({
   // Compiled client assets (TS/TSX) served on demand.
   assets: get("/assets/*path"),
+  // First-run admin creation flow + login/logout (public; method-branched).
+  setup: "/setup",
+  login: "/login",
+  logout: "/logout",
   // Server-rendered Runs list; the table hydrates for "Load more".
   home: "/",
   // Paginated list as JSON; consumed by the hydrated "Load more".
