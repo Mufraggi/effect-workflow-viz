@@ -4,12 +4,16 @@ import { Email } from "@template/domain/auth/Email"
 import { User } from "@template/domain/auth/User"
 import { Effect, Option, Schema } from "effect"
 import { createCredentialsAuthProvider } from "remix/auth"
+import * as s from "remix/data-schema"
+import * as f from "remix/data-schema/form-data"
 import { runtime } from "../data/runtime.js"
 
-interface Credentials {
-  readonly email: string
-  readonly password: string
-}
+// Validate the submitted form shape with data-schema rather than reading raw
+// FormData fields by hand (the skill's recommended pattern).
+const loginSchema = f.object({
+  email: f.field(s.defaulted(s.string(), "")),
+  password: f.field(s.defaulted(s.string(), ""))
+})
 
 const decodeEmail = Schema.decodeUnknownOption(Email)
 
@@ -18,13 +22,9 @@ const decodeEmail = Schema.decodeUnknownOption(Email)
  * account up in the auth DB, and checks the scrypt hash in constant time —
  * returning the public `User` on success or `null` on any failure.
  */
-export const passwordProvider = createCredentialsAuthProvider<Credentials, User>({
+export const passwordProvider = createCredentialsAuthProvider({
   parse(context) {
-    const form = context.get(FormData)
-    return {
-      email: String(form?.get("email") ?? ""),
-      password: String(form?.get("password") ?? "")
-    }
+    return s.parse(loginSchema, context.get(FormData))
   },
   verify({ email, password }) {
     return runtime.runPromise(

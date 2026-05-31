@@ -14,6 +14,9 @@ import type { WorkflowName } from "@template/domain/workflow/WorkflowName"
 import type { ListRunsFilter } from "@template/domain/workflow/WorkflowReader"
 import { Effect, Option, Schema } from "effect"
 import { completeAuth, verifyCredentials } from "remix/auth"
+import * as s from "remix/data-schema"
+import { email as emailCheck, minLength } from "remix/data-schema/checks"
+import * as f from "remix/data-schema/form-data"
 import { redirect } from "remix/response/redirect"
 import { createController } from "remix/router"
 import { assetServer } from "../asset-server.js"
@@ -34,6 +37,12 @@ const encodeChildren = Schema.encodeSync(Schema.Array(RunSummary))
 const decodeMessageId = Schema.decodeUnknownSync(MessageId)
 const isRunStatus = Schema.is(RunStatus)
 const decodeEmail = Schema.decodeUnknownOption(Email)
+
+// First-run admin form: validated with data-schema (format + min length).
+const setupSchema = f.object({
+  email: f.field(s.string().pipe(emailCheck())),
+  password: f.field(s.string().pipe(minLength(8)))
+})
 
 const parseFilter = (url: URL): ListRunsFilter => {
   const status = url.searchParams.getAll("status").filter(isRunStatus)
@@ -101,24 +110,21 @@ export default createController(routes, {
         return context.render(<SetupPage error={error ?? null} />)
       }
 
-      const form = context.get(FormData)
-      const emailRaw = String(form?.get("email") ?? "")
-      const password = String(form?.get("password") ?? "")
-      const email = decodeEmail(emailRaw)
-
-      if (Option.isNone(email)) {
-        context.session.flash("error", "Enter a valid email address.")
+      const parsed = s.parseSafe(setupSchema, context.get(FormData))
+      if (!parsed.success) {
+        context.session.flash("error", "Enter a valid email and a password of at least 8 characters.")
         return redirect(routes.setup.href(), 303)
       }
-      if (password.length < 8) {
-        context.session.flash("error", "Password must be at least 8 characters.")
+      const email = decodeEmail(parsed.value.email)
+      if (Option.isNone(email)) {
+        context.session.flash("error", "Enter a valid email address.")
         return redirect(routes.setup.href(), 303)
       }
 
       const result = await runtime.runPromise(
         Effect.gen(function*() {
           const repo = yield* AuthRepository
-          const passwordHash = yield* hashPassword(password)
+          const passwordHash = yield* hashPassword(parsed.value.password)
           return yield* repo.createUser({ email: email.value, passwordHash, role: "admin" })
         }).pipe(
           Effect.map((user) => ({ _tag: "ok" as const, user })),
@@ -157,10 +163,11 @@ export default createController(routes, {
       }
     },
 
-    // POST clears the session and returns to login.
+    // POST clears the auth record and rotates the session id, then returns to login.
     async logout(context) {
       if (context.method !== "POST") return redirect(routes.home.href(), 303)
-      context.session.destroy()
+      context.session.unset("auth")
+      context.session.regenerateId(true)
       return redirect(routes.login.href(), 303)
     },
 
