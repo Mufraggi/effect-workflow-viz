@@ -28,6 +28,7 @@ import { buildFilterQuery, type RunsFilters } from "../utils/runs.js"
 import { LoginPage } from "./login-page.js"
 import { RunDetailPage } from "./run-detail-page.js"
 import { RunsPage } from "./runs-page.js"
+import { SettingsPage } from "./settings-page.js"
 import { SetupPage } from "./setup-page.js"
 
 const PaginatedRunSummary = Paginated(RunSummary)
@@ -181,6 +182,17 @@ export default createController(routes, {
         return render(
           <RunsPage runs={items} nextCursor={nextCursor} filters={filters} query={buildFilterQuery(filters)} />
         )
+      }
+    },
+
+    // GET /settings — configuration page (account info + logout).
+    settings: {
+      middleware: protect,
+      async handler(context) {
+        // requireAuthRedirect guarantees `ok` at runtime; narrow for the type.
+        if (!context.auth.ok) return redirect(routes.login.href(), 303)
+        const user = context.auth.identity
+        return context.render(<SettingsPage email={user.email} role={user.role} />)
       }
     },
 

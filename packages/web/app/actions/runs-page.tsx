@@ -25,6 +25,15 @@ const styles = {
   container: css({ maxWidth: "72rem", margin: "0 auto", padding: "2.5rem 2rem" }),
   h1: css({ margin: "0 0 .25rem", fontFamily: tk.fontSerif, fontSize: "2rem", fontWeight: 600, letterSpacing: "-.01em" }),
   muted: css({ color: tk.mutedFg, fontSize: ".9rem", margin: 0 }),
+  headerRow: css({ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }),
+  navLink: css({
+    flexShrink: 0,
+    fontSize: ".85rem",
+    color: tk.primary,
+    fontWeight: 500,
+    textDecoration: "none",
+    "&:hover": { textDecoration: "underline" }
+  }),
   card: css({
     background: tk.card,
     border: `1px solid ${tk.border}`,
@@ -102,9 +111,12 @@ export function RunsPage(handle: Handle<RunsPageProps>) {
         </head>
         <body mix={styles.body}>
           <main mix={styles.container}>
-            <header>
-              <h1 mix={styles.h1}>Runs</h1>
-              <p mix={styles.muted}>Workflow runs — server-rendered with Remix 3.</p>
+            <header mix={styles.headerRow}>
+              <div>
+                <h1 mix={styles.h1}>Runs</h1>
+                <p mix={styles.muted}>Workflow runs — server-rendered with Remix 3.</p>
+              </div>
+              <a mix={styles.navLink} href={routes.settings.href()}>⚙ Settings</a>
             </header>
 
             <FiltersForm filters={filters} />

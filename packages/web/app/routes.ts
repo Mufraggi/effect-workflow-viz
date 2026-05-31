@@ -16,6 +16,8 @@ export const routes = route({
   setup: "/setup",
   login: "/login",
   logout: "/logout",
+  // Configuration page (account info, logout; account creation later).
+  settings: "/settings",
   // Server-rendered Runs list; the table hydrates for "Load more".
   home: "/",
   // Paginated list as JSON; consumed by the hydrated "Load more".

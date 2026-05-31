@@ -15,10 +15,10 @@ type ChildEncoded = RunDetailEncoded["children"][number]
 const d = {
   body: css({ margin: 0, fontFamily: tk.fontSans, color: tk.fg, background: tk.bg }),
   container: css({ maxWidth: "48rem", margin: "0 auto", padding: "2.5rem 2rem" }),
+  nav: css({ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }),
   back: css({
     fontSize: ".85rem",
     display: "inline-block",
-    marginBottom: "1.25rem",
     color: tk.primary,
     fontWeight: 500,
     textDecoration: "none",
@@ -147,7 +147,10 @@ export function RunDetailPage(handle: Handle<{ run: RunDetailEncoded }>) {
         </head>
         <body mix={d.body}>
           <main mix={d.container}>
-            <a mix={d.back} href={routes.home.href()}>← Back to runs</a>
+            <nav mix={d.nav}>
+              <a mix={d.back} href={routes.home.href()}>← Back to runs</a>
+              <a mix={d.back} href={routes.settings.href()}>⚙ Settings</a>
+            </nav>
 
             <header mix={d.card}>
               <h1 mix={d.h1}>{run.workflowName}</h1>
