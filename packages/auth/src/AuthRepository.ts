@@ -1,7 +1,7 @@
 import { SqlClient, SqlSchema } from "@effect/sql"
+import { UserAlreadyExists } from "@template/domain/auth/AuthErrors"
 import { AuthEvent } from "@template/domain/auth/AuthEvent"
 import { Email } from "@template/domain/auth/Email"
-import { UserAlreadyExists } from "@template/domain/auth/errors"
 import type { IpAddress } from "@template/domain/auth/IpAddress"
 import { Role } from "@template/domain/auth/Role"
 import { User } from "@template/domain/auth/User"
