@@ -2,6 +2,33 @@ export * as Pagination from "./Pagination.js"
 
 export * as UserId from "./UserId.js"
 
+export * as AuthErrors from "./auth/AuthErrors.js"
+
+export * as AuthEvent from "./auth/AuthEvent.js"
+
+/**
+ * A normalized (lower-cased, trimmed) email address.
+ *
+ * Validation is intentionally lightweight — a single `@` with a dot in the
+ * domain — since deliverability is enforced elsewhere, not by the schema.
+ */
+export * as Email from "./auth/Email.js"
+
+export * as IpAddress from "./auth/IpAddress.js"
+
+/**
+ * Account role. The first account created through the setup flow is `admin`;
+ * any account provisioned later defaults to `user`.
+ */
+export * as Role from "./auth/Role.js"
+
+/**
+ * The public representation of an account — everything the app may freely hold
+ * in memory or expose. The password hash is deliberately absent: it never
+ * leaves the `AuthRepository`.
+ */
+export * as User from "./auth/User.js"
+
 export * as MessageId from "./run/MessageId.js"
 
 export * as RunDetail from "./run/RunDetail.js"
