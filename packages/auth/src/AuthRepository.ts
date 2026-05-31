@@ -42,6 +42,16 @@ export class AuthRepository extends Effect.Service<AuthRepository>()("AuthReposi
       return Number(rows[0]?.count ?? 0)
     }).pipe(Effect.orDie, Effect.withSpan("AuthRepository.countUsers"))
 
+    const listUsersSchema = SqlSchema.findAll({
+      Request: Schema.Void,
+      Result: User,
+      execute: () => sql`SELECT id, email, role, created_at FROM users ORDER BY created_at ASC`
+    })
+    const listUsers = listUsersSchema(undefined).pipe(
+      Effect.orDie,
+      Effect.withSpan("AuthRepository.listUsers")
+    )
+
     const findByEmailSchema = SqlSchema.findOne({
       Request: Email,
       Result: UserWithHash,
@@ -88,7 +98,7 @@ export class AuthRepository extends Effect.Service<AuthRepository>()("AuthReposi
         Effect.withSpan("AuthRepository.createUser")
       )
 
-    return { countUsers, findByEmail, findById, createUser } as const
+    return { countUsers, listUsers, findByEmail, findById, createUser } as const
   }),
   dependencies: [SqliteLive]
 }) {}

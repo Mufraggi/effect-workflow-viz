@@ -45,6 +45,13 @@ const setupSchema = f.object({
   password: f.field(s.string().pipe(minLength(8)))
 })
 
+// Admin "create account" form on the settings page.
+const createUserSchema = f.object({
+  email: f.field(s.string().pipe(emailCheck())),
+  password: f.field(s.string().pipe(minLength(8))),
+  role: f.field(s.union([s.literal("admin"), s.literal("user")]))
+})
+
 const parseFilter = (url: URL): ListRunsFilter => {
   const status = url.searchParams.getAll("status").filter(isRunStatus)
   const workflowName = url.searchParams.get("workflowName")
@@ -185,14 +192,67 @@ export default createController(routes, {
       }
     },
 
-    // GET /settings — configuration page (account info + logout).
+    // /settings — configuration page. GET renders account info + logout + the
+    // user list; POST (admin only) creates a new account.
     settings: {
       middleware: protect,
       async handler(context) {
         // requireAuthRedirect guarantees `ok` at runtime; narrow for the type.
         if (!context.auth.ok) return redirect(routes.login.href(), 303)
-        const user = context.auth.identity
-        return context.render(<SettingsPage email={user.email} role={user.role} />)
+        const currentUser = context.auth.identity
+        const isAdmin = currentUser.role === "admin"
+
+        if (context.method === "POST") {
+          if (!isAdmin) return new Response("Forbidden", { status: 403 })
+
+          const parsed = s.parseSafe(createUserSchema, context.get(FormData))
+          if (!parsed.success) {
+            context.session.flash("error", "Enter a valid email, a password of at least 8 characters, and a role.")
+            return redirect(routes.settings.href(), 303)
+          }
+          const email = decodeEmail(parsed.value.email)
+          if (Option.isNone(email)) {
+            context.session.flash("error", "Enter a valid email address.")
+            return redirect(routes.settings.href(), 303)
+          }
+
+          const outcome = await runtime.runPromise(
+            Effect.gen(function*() {
+              const repo = yield* AuthRepository
+              const passwordHash = yield* hashPassword(parsed.value.password)
+              const role = parsed.value.role === "admin" ? "admin" : "user"
+              return yield* repo.createUser({ email: email.value, passwordHash, role })
+            }).pipe(
+              Effect.map((user) => ({ _tag: "ok" as const, user })),
+              Effect.catchTag("UserAlreadyExists", () => Effect.succeed({ _tag: "exists" as const }))
+            )
+          )
+          if (outcome._tag === "exists") {
+            context.session.flash("error", "An account with that email already exists.")
+          } else {
+            context.session.flash("success", `Account ${outcome.user.email} created.`)
+          }
+          return redirect(routes.settings.href(), 303)
+        }
+
+        const users = await runtime.runPromise(
+          Effect.gen(function*() {
+            const repo = yield* AuthRepository
+            return yield* repo.listUsers
+          })
+        )
+        const error = context.session.get("error") as string | undefined
+        const success = context.session.get("success") as string | undefined
+        return context.render(
+          <SettingsPage
+            email={currentUser.email}
+            role={currentUser.role}
+            isAdmin={isAdmin}
+            users={users.map((u) => ({ email: u.email, role: u.role }))}
+            error={error ?? null}
+            success={success ?? null}
+          />
+        )
       }
     },
 
