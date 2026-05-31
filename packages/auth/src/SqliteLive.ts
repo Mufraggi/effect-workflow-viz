@@ -30,6 +30,8 @@ export const SqliteLive = Layer.unwrapEffect(
     })
   })
 ).pipe(
-  Layer.provide(PlatformConfigProvider.layerDotEnv(path.join(process.cwd(), ".env"))),
+  // See PgLive: overlay a local `.env` on the OS environment, tolerating its
+  // absence so a container with the variables injected directly works.
+  Layer.provide(PlatformConfigProvider.layerDotEnvAdd(path.join(process.cwd(), ".env"))),
   Layer.provide(NodeContext.layer)
 )
