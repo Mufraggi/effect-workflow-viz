@@ -18,8 +18,6 @@
     "paths": {
       "@template/domain": ["../domain/src/index.ts"],
       "@template/domain/*": ["../domain/src/*.ts"],
-      "@template/api-contract": ["../api-contract/src/index.ts"],
-      "@template/api-contract/*": ["../api-contract/src/*.ts"],
       "@template/database": ["../database/src/index.ts"],
       "@template/database/*": ["../database/src/*.ts"],
       "@template/auth": ["../auth/src/index.ts"],

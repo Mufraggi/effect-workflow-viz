@@ -41,9 +41,6 @@
       "@template/domain": ["./packages/domain/src/index.js"],
       "@template/domain/*": ["./packages/domain/src/*.js"],
       "@template/domain/test/*": ["./packages/domain/test/*.js"],
-      "@template/api-contract": ["./packages/api-contract/src/index.js"],
-      "@template/api-contract/*": ["./packages/api-contract/src/*.js"],
-      "@template/api-contract/test/*": ["./packages/api-contract/test/*.js"],
       "@template/database": ["./packages/database/src/index.js"],
       "@template/database/*": ["./packages/database/src/*.js"],
       "@template/database/test/*": ["./packages/database/test/*.js"],
@@ -52,10 +49,7 @@
       "@template/auth/test/*": ["./packages/auth/test/*.js"],
       "@template/api": ["./packages/api/src/index.js"],
       "@template/api/*": ["./packages/api/src/*.js"],
-      "@template/api/test/*": ["./packages/api/test/*.js"],
-      "@template/front": ["./packages/front/src/index.js"],
-      "@template/front/*": ["./packages/front/src/*.js"],
-      "@template/front/test/*": ["./packages/front/test/*.js"]
+      "@template/api/test/*": ["./packages/api/test/*.js"]
     }
   }
 }

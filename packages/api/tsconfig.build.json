@@ -2,7 +2,6 @@
   "extends": "./tsconfig.src.json",
   "references": [
     { "path": "../domain/tsconfig.build.json" },
-    { "path": "../api-contract/tsconfig.build.json" },
     { "path": "../database/tsconfig.build.json" }
   ],
   "compilerOptions": {

@@ -3,7 +3,6 @@
   "include": ["src"],
   "references": [
     { "path": "../domain" },
-    { "path": "../api-contract" },
     { "path": "../database" }
   ],
   "compilerOptions": {

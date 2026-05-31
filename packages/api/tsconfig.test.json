@@ -4,7 +4,6 @@
   "references": [
     { "path": "tsconfig.src.json" },
     { "path": "../domain" },
-    { "path": "../api-contract" },
     { "path": "../database" }
   ],
   "compilerOptions": {
