@@ -1,2 +1,26 @@
 packages:
   - packages/*
+
+# Native module: allow better-sqlite3 (backs @effect/sql-sqlite-node for the auth
+# DB) to run its install/build script so its native binary is available.
+onlyBuiltDependencies:
+  - better-sqlite3
+
+# Install optional native bindings (e.g. the oxc toolchain used by remix/assets)
+# for every platform the team builds on, so the lockfile carries them and any
+# machine's `pnpm install` picks the matching binary — instead of pinning a
+# single platform's binding as an explicit dependency.
+supportedArchitectures:
+  os:
+    - current
+    - darwin
+    - linux
+    - win32
+  cpu:
+    - current
+    - x64
+    - arm64
+  libc:
+    - current
+    - glibc
+    - musl

@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "type": "module",
   "license": "MIT",
-  "description": "HTTP API server",
+  "description": "Workflow run query services (Effect)",
   "repository": {
     "type": "git",
     "url": "<PLACEHOLDER>",
@@ -14,7 +14,6 @@
     "directory": "dist"
   },
   "scripts": {
-    "dev": "tsx --watch src/server.ts",
     "codegen": "build-utils prepare-v2",
     "build": "pnpm build-esm && pnpm build-annotate && pnpm build-cjs && build-utils pack-v2",
     "build-esm": "tsc -b tsconfig.build.json",
@@ -25,14 +24,9 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@effect/platform": "latest",
-    "@effect/platform-node": "latest",
-    "@template/api-contract": "workspace:^",
-    "@template/auth": "workspace:^",
     "@template/database": "workspace:^",
     "@template/domain": "workspace:^",
-    "effect": "latest",
-    "oslo": "^1.2.1"
+    "effect": "latest"
   },
   "effect": {
     "generateExports": {

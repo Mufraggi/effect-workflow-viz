@@ -3,10 +3,8 @@
   "include": [],
   "references": [
     { "path": "packages/domain" },
-    { "path": "packages/api-contract" },
     { "path": "packages/database" },
-    { "path": "packages/api" },
     { "path": "packages/auth" },
-    { "path": "packages/front" }
+    { "path": "packages/api" }
   ]
 }

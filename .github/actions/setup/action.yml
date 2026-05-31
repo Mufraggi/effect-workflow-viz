@@ -4,26 +4,17 @@ inputs:
   node-version:
     description: The version of Node.js to install
     required: true
-    default: "24"
+    default: 24.5.0
 
 runs:
   using: composite
   steps:
     - name: Install pnpm
       uses: pnpm/action-setup@v3
-    - name: Get pnpm store directory
-      shell: bash
-      run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-    - name: Setup pnpm cache
-      uses: actions/cache@v4
-      with:
-        path: ${{ env.STORE_PATH }}
-        key: ${{ runner.os }}-pnpm-node${{ inputs.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-        restore-keys: |
-          ${{ runner.os }}-pnpm-node${{ inputs.node-version }}-
     - name: Install node
       uses: actions/setup-node@v4
       with:
+        cache: pnpm
         node-version: ${{ inputs.node-version }}
     - name: Install dependencies
       shell: bash

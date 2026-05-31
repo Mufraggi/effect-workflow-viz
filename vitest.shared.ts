@@ -33,7 +33,6 @@ const config: UserConfig = {
       ...alias("api-contract"),
       ...alias("database"),
       ...alias("api"),
-      ...alias("auth"),
       ...alias("front")
     }
   }

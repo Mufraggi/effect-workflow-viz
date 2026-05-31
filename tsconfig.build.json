@@ -3,10 +3,8 @@
   "include": [],
   "references": [
     { "path": "packages/domain/tsconfig.build.json" },
-    { "path": "packages/api-contract/tsconfig.build.json" },
     { "path": "packages/database/tsconfig.build.json" },
-    { "path": "packages/api/tsconfig.build.json" },
     { "path": "packages/auth/tsconfig.build.json" },
-    { "path": "packages/front/tsconfig.build.json" }
+    { "path": "packages/api/tsconfig.build.json" }
   ]
 }

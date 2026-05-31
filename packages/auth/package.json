@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "type": "module",
   "license": "MIT",
-  "description": "SQLite-based authentication layer",
+  "description": "Auth data access layer (SQLite)",
   "repository": {
     "type": "git",
     "url": "<PLACEHOLDER>",
@@ -28,6 +28,7 @@
     "@effect/platform-node": "latest",
     "@effect/sql": "latest",
     "@effect/sql-sqlite-node": "latest",
+    "@template/domain": "workspace:^",
     "effect": "latest",
     "oslo": "^1.2.1"
   },
