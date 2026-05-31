@@ -184,7 +184,6 @@ importers:
       remix:
         specifier: 3.0.0-beta.2
         version: 3.0.0-beta.2(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(pg@8.20.0)
-    devDependencies:
       tsx:
         specifier: ^4.19.2
         version: 4.21.0

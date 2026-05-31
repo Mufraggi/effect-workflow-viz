@@ -18,14 +18,25 @@ RUN apt-get update \
 WORKDIR /app
 
 # Copy only the manifests first so the install layer is reused across source changes.
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY pnpm-lock.yaml package.json ./
 COPY packages/api/package.json       packages/api/package.json
 COPY packages/auth/package.json      packages/auth/package.json
 COPY packages/database/package.json  packages/database/package.json
 COPY packages/domain/package.json    packages/domain/package.json
 COPY packages/web/package.json       packages/web/package.json
+# Trim the workspace config for the image build: keep the package globs and the
+# native-build allowlist, but drop `supportedArchitectures` — the committed
+# version pulls native bindings (esbuild, lightningcss, …) for every dev OS,
+# arch, and libc, which is ~200 MB of binaries this single-platform image never
+# runs. Without it, pnpm installs only the bindings for the platform being built
+# (auto-matching amd64/arm64). Neither setting affects lockfile resolution, so
+# `--frozen-lockfile` still holds.
+RUN printf 'packages:\n  - packages/*\nonlyBuiltDependencies:\n  - better-sqlite3\n' > pnpm-workspace.yaml
+# `--prod` drops devDependencies (typescript, eslint, vitest, babel, the Effect
+# language service, …) that the running app never imports. tsx is a runtime dep
+# of @template/web, so it survives the prune.
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile
+    pnpm install --frozen-lockfile --prod
 
 # Source tree (node_modules excluded via .dockerignore — keep pnpm's install).
 COPY . .
