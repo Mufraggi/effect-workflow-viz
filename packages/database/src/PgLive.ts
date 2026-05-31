@@ -39,6 +39,10 @@ export const PgLive = Layer.unwrapEffect(
     })
   })
 ).pipe(
-  Layer.provide(PlatformConfigProvider.layerDotEnv(path.join(process.cwd(), ".env"))),
+  // `layerDotEnvAdd` overlays a local `.env` (for dev) on top of the OS
+  // environment without replacing it, and tolerates the file being absent — so
+  // a container with the variables injected straight into `process.env` works
+  // without shipping a `.env`. (`layerDotEnv` would throw ENOENT here.)
+  Layer.provide(PlatformConfigProvider.layerDotEnvAdd(path.join(process.cwd(), ".env"))),
   Layer.provide(NodeContext.layer)
 )

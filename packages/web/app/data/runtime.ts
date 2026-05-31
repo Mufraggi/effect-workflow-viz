@@ -16,7 +16,10 @@ const ReadLayer = Layer.mergeAll(
   ListRunsQuery.Default,
   GetRunQuery.Default,
   GetChildRunsQuery.Default
-).pipe(Layer.provide(PgLive))
+  // `provideMerge` (vs `provide`) keeps `SqlClient` in the output context as
+  // well as feeding it to the queries, so the readiness probe (`Health.ping`)
+  // can reuse the same pool instead of opening a second connection.
+).pipe(Layer.provideMerge(PgLive))
 
 /**
  * Auth lives in its own writable SQLite DB (kept separate from the read-only

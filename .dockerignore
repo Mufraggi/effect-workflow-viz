@@ -1,0 +1,34 @@
+# Reinstalled inside the image
+node_modules
+**/node_modules
+
+# VCS / CI / editors
+.git
+.github
+.vscode
+.idea
+
+# Build artifacts (the app runs from source via tsx)
+dist
+build
+**/dist
+**/build
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# Local secrets and state — never bake these into the image.
+# Note: only the SQLite *files* are excluded, NOT directories named `data`
+# (packages/web/app/data/ holds source — runtime.ts — and must be kept).
+.env
+**/.env
+*.db
+**/*.db
+*.db-journal
+**/*.db-journal
+
+# Misc
+.DS_Store
+coverage
+**/coverage
+Dockerfile
+.dockerignore
