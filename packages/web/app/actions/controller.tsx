@@ -4,6 +4,7 @@ import { ListRunsQuery } from "@template/api/run/query/ListRunsQuery"
 import { AuthRepository } from "@template/auth/AuthRepository"
 import { hashPassword } from "@template/auth/password"
 import { Email } from "@template/domain/auth/Email"
+import { UserId } from "@template/domain/UserId"
 import { PageRequest, Paginated } from "@template/domain/Pagination"
 import { MessageId } from "@template/domain/run/MessageId"
 import { RunDetail } from "@template/domain/run/RunDetail"
@@ -45,11 +46,19 @@ const setupSchema = f.object({
   password: f.field(s.string().pipe(minLength(8)))
 })
 
-// Admin "create account" form on the settings page.
+// Admin account-management forms on the settings page.
 const createUserSchema = f.object({
   email: f.field(s.string().pipe(emailCheck())),
   password: f.field(s.string().pipe(minLength(8))),
   role: f.field(s.union([s.literal("admin"), s.literal("user")]))
+})
+const updateUserSchema = f.object({
+  id: f.field(s.string().pipe(minLength(1))),
+  role: f.field(s.union([s.literal("admin"), s.literal("user")])),
+  password: f.field(s.defaulted(s.string(), ""))
+})
+const deleteUserSchema = f.object({
+  id: f.field(s.string().pipe(minLength(1)))
 })
 
 const parseFilter = (url: URL): ListRunsFilter => {
@@ -204,35 +213,80 @@ export default createController(routes, {
 
         if (context.method === "POST") {
           if (!isAdmin) return new Response("Forbidden", { status: 403 })
-
-          const parsed = s.parseSafe(createUserSchema, context.get(FormData))
-          if (!parsed.success) {
-            context.session.flash("error", "Enter a valid email, a password of at least 8 characters, and a role.")
+          const form = context.get(FormData)
+          const intent = String(form?.get("intent") ?? "create")
+          const flashTo = (key: "error" | "success", msg: string) => {
+            context.session.flash(key, msg)
             return redirect(routes.settings.href(), 303)
+          }
+
+          if (intent === "delete") {
+            const parsed = s.parseSafe(deleteUserSchema, form)
+            if (!parsed.success) return flashTo("error", "Could not delete that account.")
+            const targetId = UserId.make(parsed.value.id)
+            if (targetId === currentUser.id) return flashTo("error", "You cannot delete your own account.")
+            const result = await runtime.runPromise(
+              Effect.gen(function*() {
+                const repo = yield* AuthRepository
+                const target = yield* repo.findById(targetId)
+                if (target === null) return { _tag: "notFound" as const }
+                if (target.role === "admin" && (yield* repo.countAdmins) <= 1) return { _tag: "lastAdmin" as const }
+                yield* repo.deleteUser(targetId)
+                return { _tag: "ok" as const, email: target.email }
+              })
+            )
+            if (result._tag === "notFound") return flashTo("error", "Account not found.")
+            if (result._tag === "lastAdmin") return flashTo("error", "Cannot delete the last admin.")
+            return flashTo("success", `Account ${result.email} deleted.`)
+          }
+
+          if (intent === "update") {
+            const parsed = s.parseSafe(updateUserSchema, form)
+            if (!parsed.success) return flashTo("error", "Enter a valid role (and an 8+ character password if changing it).")
+            const targetId = UserId.make(parsed.value.id)
+            const newRole = parsed.value.role === "admin" ? "admin" : "user"
+            const newPassword = parsed.value.password
+            if (newPassword !== "" && newPassword.length < 8) {
+              return flashTo("error", "Password must be at least 8 characters.")
+            }
+            const result = await runtime.runPromise(
+              Effect.gen(function*() {
+                const repo = yield* AuthRepository
+                const target = yield* repo.findById(targetId)
+                if (target === null) return { _tag: "notFound" as const }
+                if (target.role === "admin" && newRole === "user" && (yield* repo.countAdmins) <= 1) {
+                  return { _tag: "lastAdmin" as const }
+                }
+                const passwordHash = newPassword !== "" ? yield* hashPassword(newPassword) : undefined
+                yield* repo.updateUser({ id: targetId, role: newRole, passwordHash })
+                return { _tag: "ok" as const, email: target.email }
+              })
+            )
+            if (result._tag === "notFound") return flashTo("error", "Account not found.")
+            if (result._tag === "lastAdmin") return flashTo("error", "Cannot demote the last admin.")
+            return flashTo("success", `Account ${result.email} updated.`)
+          }
+
+          // intent === "create"
+          const parsed = s.parseSafe(createUserSchema, form)
+          if (!parsed.success) {
+            return flashTo("error", "Enter a valid email, a password of at least 8 characters, and a role.")
           }
           const email = decodeEmail(parsed.value.email)
-          if (Option.isNone(email)) {
-            context.session.flash("error", "Enter a valid email address.")
-            return redirect(routes.settings.href(), 303)
-          }
-
+          if (Option.isNone(email)) return flashTo("error", "Enter a valid email address.")
+          const role = parsed.value.role === "admin" ? "admin" : "user"
           const outcome = await runtime.runPromise(
             Effect.gen(function*() {
               const repo = yield* AuthRepository
               const passwordHash = yield* hashPassword(parsed.value.password)
-              const role = parsed.value.role === "admin" ? "admin" : "user"
               return yield* repo.createUser({ email: email.value, passwordHash, role })
             }).pipe(
               Effect.map((user) => ({ _tag: "ok" as const, user })),
               Effect.catchTag("UserAlreadyExists", () => Effect.succeed({ _tag: "exists" as const }))
             )
           )
-          if (outcome._tag === "exists") {
-            context.session.flash("error", "An account with that email already exists.")
-          } else {
-            context.session.flash("success", `Account ${outcome.user.email} created.`)
-          }
-          return redirect(routes.settings.href(), 303)
+          if (outcome._tag === "exists") return flashTo("error", "An account with that email already exists.")
+          return flashTo("success", `Account ${outcome.user.email} created.`)
         }
 
         const users = await runtime.runPromise(
@@ -241,6 +295,7 @@ export default createController(routes, {
             return yield* repo.listUsers
           })
         )
+        const adminCount = users.filter((u) => u.role === "admin").length
         const error = context.session.get("error") as string | undefined
         const success = context.session.get("success") as string | undefined
         return context.render(
@@ -248,7 +303,12 @@ export default createController(routes, {
             email={currentUser.email}
             role={currentUser.role}
             isAdmin={isAdmin}
-            users={users.map((u) => ({ email: u.email, role: u.role }))}
+            users={users.map((u) => ({
+              id: u.id,
+              email: u.email,
+              role: u.role,
+              canDelete: u.id !== currentUser.id && !(u.role === "admin" && adminCount <= 1)
+            }))}
             error={error ?? null}
             success={success ?? null}
           />

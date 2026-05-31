@@ -52,6 +52,11 @@ export class AuthRepository extends Effect.Service<AuthRepository>()("AuthReposi
       Effect.withSpan("AuthRepository.listUsers")
     )
 
+    const countAdmins = Effect.gen(function*() {
+      const rows = yield* sql<{ readonly count: number }>`SELECT COUNT(*) AS count FROM users WHERE role = 'admin'`
+      return Number(rows[0]?.count ?? 0)
+    }).pipe(Effect.orDie, Effect.withSpan("AuthRepository.countAdmins"))
+
     const findByEmailSchema = SqlSchema.findOne({
       Request: Email,
       Result: UserWithHash,
@@ -98,7 +103,26 @@ export class AuthRepository extends Effect.Service<AuthRepository>()("AuthReposi
         Effect.withSpan("AuthRepository.createUser")
       )
 
-    return { countUsers, listUsers, findByEmail, findById, createUser } as const
+    const updateUser = (
+      input: { readonly id: UserId; readonly role?: Role; readonly passwordHash?: string }
+    ): Effect.Effect<void> =>
+      Effect.gen(function*() {
+        if (input.role !== undefined) {
+          yield* sql`UPDATE users SET role = ${input.role} WHERE id = ${input.id}`
+        }
+        if (input.passwordHash !== undefined) {
+          yield* sql`UPDATE users SET password_hash = ${input.passwordHash} WHERE id = ${input.id}`
+        }
+      }).pipe(Effect.orDie, Effect.asVoid, Effect.withSpan("AuthRepository.updateUser"))
+
+    const deleteUser = (id: UserId): Effect.Effect<void> =>
+      sql`DELETE FROM users WHERE id = ${id}`.pipe(
+        Effect.orDie,
+        Effect.asVoid,
+        Effect.withSpan("AuthRepository.deleteUser")
+      )
+
+    return { countUsers, countAdmins, listUsers, findByEmail, findById, createUser, updateUser, deleteUser } as const
   }),
   dependencies: [SqliteLive]
 }) {}

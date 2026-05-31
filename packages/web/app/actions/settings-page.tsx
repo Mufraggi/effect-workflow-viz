@@ -5,8 +5,10 @@ import { FONTS_HREF, tk } from "../ui/tokens.js"
 import { authStyles as a } from "./auth-styles.js"
 
 export interface SettingsUser {
+  id: string
   email: string
   role: string
+  canDelete: boolean
 }
 
 export interface SettingsPageProps {
@@ -49,11 +51,39 @@ const s = {
   val: css({ fontFamily: tk.fontMono, fontSize: ".85rem" }),
   userRow: css({
     display: "flex",
-    justifyContent: "space-between",
+    flexWrap: "wrap",
     alignItems: "center",
-    gap: "1rem",
-    padding: ".55rem 0",
+    gap: ".5rem",
+    padding: ".6rem 0",
     borderTop: `1px solid ${tk.border}`
+  }),
+  userEmail: css({ fontFamily: tk.fontMono, fontSize: ".85rem", flex: "1 1 12rem", wordBreak: "break-all" }),
+  small: css({
+    padding: ".35rem .5rem",
+    border: `1px solid ${tk.border}`,
+    borderRadius: tk.radiusSm,
+    background: tk.bg,
+    color: "inherit",
+    font: "inherit",
+    fontSize: ".8rem",
+    "&:focus": { outline: "none", borderColor: tk.primary }
+  }),
+  btnSm: css({
+    padding: ".35rem .7rem",
+    border: `1px solid ${tk.border}`,
+    borderRadius: tk.radiusSm,
+    background: tk.bg,
+    color: "inherit",
+    font: "inherit",
+    fontSize: ".8rem",
+    fontWeight: 500,
+    cursor: "pointer",
+    "&:hover": { background: tk.hoverBg }
+  }),
+  btnDanger: css({
+    border: `1px solid ${tk.destructive}`,
+    color: tk.destructive,
+    "&:hover": { background: "color-mix(in oklch, oklch(0.6368 0.2078 25.3313) 12%, transparent)" }
   }),
   roleTag: css({
     fontSize: ".7rem",
@@ -64,6 +94,13 @@ const s = {
     borderRadius: "999px",
     color: tk.primary,
     background: tk.primarySoft
+  }),
+  createTitle: css({
+    fontSize: ".72rem",
+    textTransform: "uppercase",
+    letterSpacing: ".05em",
+    color: tk.mutedFg,
+    margin: "1.5rem 0 0"
   }),
   form: css({ display: "flex", flexWrap: "wrap", gap: "1rem", alignItems: "flex-end", marginTop: "1rem" }),
   field: css({ display: "flex", flexDirection: "column", gap: ".4rem" }),
@@ -134,35 +171,62 @@ export function SettingsPage(handle: Handle<SettingsPageProps>) {
 
             <section mix={s.card}>
               <h2 mix={s.cardTitle}>Users</h2>
-              {users.map((u) => (
-                <div mix={s.userRow}>
-                  <span mix={s.val}>{u.email}</span>
-                  <span mix={s.roleTag}>{u.role}</span>
-                </div>
-              ))}
+              {users.map((u) =>
+                isAdmin
+                  ? (
+                    <form mix={s.userRow} method="post" action={routes.settings.href()}>
+                      <input type="hidden" name="id" value={u.id} />
+                      <span mix={s.userEmail}>{u.email}</span>
+                      <select mix={s.small} name="role">
+                        <option value="user" selected={u.role === "user"}>user</option>
+                        <option value="admin" selected={u.role === "admin"}>admin</option>
+                      </select>
+                      <input
+                        mix={s.small}
+                        type="password"
+                        name="password"
+                        placeholder="new password"
+                        autocomplete="new-password"
+                      />
+                      <button mix={s.btnSm} type="submit" name="intent" value="update">Save</button>
+                      {u.canDelete && (
+                        <button mix={[s.btnSm, s.btnDanger]} type="submit" name="intent" value="delete">Delete</button>
+                      )}
+                    </form>
+                  )
+                  : (
+                    <div mix={s.userRow}>
+                      <span mix={s.userEmail}>{u.email}</span>
+                      <span mix={s.roleTag}>{u.role}</span>
+                    </div>
+                  )
+              )}
 
               {isAdmin
                 ? (
-                  <form mix={s.form} method="post" action={routes.settings.href()}>
-                    <div mix={s.field}>
-                      <span mix={s.lbl}>Email</span>
-                      <input mix={s.input} type="email" name="email" autocomplete="off" required />
-                    </div>
-                    <div mix={s.field}>
-                      <span mix={s.lbl}>Password</span>
-                      <input mix={s.input} type="password" name="password" autocomplete="new-password" minlength={8} required />
-                    </div>
-                    <div mix={s.field}>
-                      <span mix={s.lbl}>Role</span>
-                      <select mix={s.input} name="role">
-                        <option value="user">user</option>
-                        <option value="admin">admin</option>
-                      </select>
-                    </div>
-                    <button mix={[a.btn, a.btnPrimary]} type="submit">Create account</button>
-                  </form>
+                  <div>
+                    <h3 mix={s.createTitle}>Create account</h3>
+                    <form mix={s.form} method="post" action={routes.settings.href()}>
+                      <div mix={s.field}>
+                        <span mix={s.lbl}>Email</span>
+                        <input mix={s.input} type="email" name="email" autocomplete="off" required />
+                      </div>
+                      <div mix={s.field}>
+                        <span mix={s.lbl}>Password</span>
+                        <input mix={s.input} type="password" name="password" autocomplete="new-password" minlength={8} required />
+                      </div>
+                      <div mix={s.field}>
+                        <span mix={s.lbl}>Role</span>
+                        <select mix={s.input} name="role">
+                          <option value="user">user</option>
+                          <option value="admin">admin</option>
+                        </select>
+                      </div>
+                      <button mix={[a.btn, a.btnPrimary]} type="submit" name="intent" value="create">Create account</button>
+                    </form>
+                  </div>
                 )
-                : <p mix={s.key}>Only admins can create accounts.</p>}
+                : <p mix={s.key}>Only admins can manage accounts.</p>}
             </section>
           </main>
         </body>
