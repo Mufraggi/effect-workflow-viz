@@ -4,13 +4,13 @@ import { ListRunsQuery } from "@template/api/run/query/ListRunsQuery"
 import { AuthRepository } from "@template/auth/AuthRepository"
 import { hashPassword } from "@template/auth/password"
 import { Email } from "@template/domain/auth/Email"
-import { UserId } from "@template/domain/UserId"
 import { PageRequest, Paginated } from "@template/domain/Pagination"
 import { MessageId } from "@template/domain/run/MessageId"
 import { RunDetail } from "@template/domain/run/RunDetail"
 import { RunStatus } from "@template/domain/run/RunStatus"
 import { RunSummary } from "@template/domain/run/RunSummary"
 import type { TraceId } from "@template/domain/run/TraceId"
+import { UserId } from "@template/domain/UserId"
 import type { WorkflowName } from "@template/domain/workflow/WorkflowName"
 import type { ListRunsFilter } from "@template/domain/workflow/WorkflowReader"
 import { Effect, Option, Schema } from "effect"
@@ -21,6 +21,7 @@ import * as f from "remix/data-schema/form-data"
 import { redirect } from "remix/response/redirect"
 import { createController } from "remix/router"
 import { assetServer } from "../asset-server.js"
+import { resolveClientIp } from "../auth/client-ip.js"
 import { requireAuthRedirect, setupGuard } from "../auth/guards.js"
 import { passwordProvider } from "../auth/provider.js"
 import { runtime } from "../data/runtime.js"
@@ -99,6 +100,19 @@ const countUsers = () =>
     })
   )
 
+// Run an effect against the AuthRepository via the shared runtime.
+// (A function declaration avoids the `.tsx` arrow-generic/JSX ambiguity.)
+function withAuth<A>(f: (repo: AuthRepository) => Effect.Effect<A>): Promise<A> {
+  return runtime.runPromise(Effect.flatMap(AuthRepository, f))
+}
+
+// Brute-force lockout: block an IP after this many failures within the window.
+const RATE_LIMIT_WINDOW_MINUTES = 15
+const RATE_LIMIT_MAX_FAILURES = 10
+
+// Short server-side date format for the settings activity log (UTC).
+const fmtAt = (d: Date): string => d.toISOString().slice(0, 19).replace("T", " ")
+
 // Only honor local redirect targets — never an absolute URL (open-redirect guard).
 const safeReturnTo = (value: string | null): string =>
   value !== null && value.startsWith("/") && !value.startsWith("//") ? value : routes.home.href()
@@ -151,6 +165,18 @@ export default createController(routes, {
 
       if (result._tag === "exists") return redirect(routes.login.href(), 303)
 
+      const ip = resolveClientIp(context.request)
+      const userAgent = context.request.headers.get("user-agent")
+      await withAuth((r) =>
+        Effect.all(
+          [
+            r.touchLastLogin(result.user.id),
+            r.recordAudit({ event: "setup_completed", userId: result.user.id, email: result.user.email, ip, userAgent })
+          ],
+          { discard: true }
+        )
+      )
+
       const session = completeAuth(context)
       session.set("auth", { userId: result.user.id })
       return redirect(routes.home.href(), 303)
@@ -166,16 +192,52 @@ export default createController(routes, {
           return context.render(<LoginPage error={error ?? null} returnTo={returnTo} />)
         }
 
+        const ip = resolveClientIp(context.request)
+        const userAgent = context.request.headers.get("user-agent")
+        const form = context.get(FormData)
+        const attemptedEmail = String(form?.get("email") ?? "") || null
+        const loginQs = returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""
+
+        // Brute-force lockout: too many recent failures from this IP.
+        if (ip !== null) {
+          const failures = await withAuth((r) =>
+            r.countRecentFailures({ ip, windowMinutes: RATE_LIMIT_WINDOW_MINUTES })
+          )
+          if (failures >= RATE_LIMIT_MAX_FAILURES) {
+            await withAuth((r) => r.recordAudit({ event: "login_blocked", email: attemptedEmail, ip, userAgent }))
+            context.session.flash("error", `Too many attempts. Try again in ${RATE_LIMIT_WINDOW_MINUTES} minutes.`)
+            return redirect(routes.login.href() + loginQs, 303)
+          }
+        }
+
         const user = await verifyCredentials(passwordProvider, context)
         if (user == null) {
+          await withAuth((r) =>
+            Effect.all(
+              [
+                ...(ip !== null ? [r.recordLoginAttempt({ ip, succeeded: false })] : []),
+                r.recordAudit({ event: "login_failure", email: attemptedEmail, ip, userAgent })
+              ],
+              { discard: true }
+            )
+          )
           context.session.flash("error", "Invalid email or password.")
-          const qs = returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""
-          return redirect(routes.login.href() + qs, 303)
+          return redirect(routes.login.href() + loginQs, 303)
         }
+
+        await withAuth((r) =>
+          Effect.all(
+            [
+              ...(ip !== null ? [r.recordLoginAttempt({ ip, succeeded: true })] : []),
+              r.touchLastLogin(user.id),
+              r.recordAudit({ event: "login_success", userId: user.id, email: user.email, ip, userAgent })
+            ],
+            { discard: true }
+          )
+        )
 
         const session = completeAuth(context)
         session.set("auth", { userId: user.id })
-        const form = context.get(FormData)
         return redirect(safeReturnTo(String(form?.get("returnTo") ?? returnTo ?? "")), 303)
       }
     },
@@ -183,8 +245,14 @@ export default createController(routes, {
     // POST clears the auth record and rotates the session id, then returns to login.
     async logout(context) {
       if (context.method !== "POST") return redirect(routes.home.href(), 303)
+      const rec = context.session.get("auth") as { userId?: string } | undefined
+      const ip = resolveClientIp(context.request)
+      const userAgent = context.request.headers.get("user-agent")
       context.session.unset("auth")
       context.session.regenerateId(true)
+      if (rec?.userId !== undefined) {
+        await withAuth((r) => r.recordAudit({ event: "logout", userId: UserId.make(rec.userId!), ip, userAgent }))
+      }
       return redirect(routes.login.href(), 303)
     },
 
@@ -215,6 +283,8 @@ export default createController(routes, {
           if (!isAdmin) return new Response("Forbidden", { status: 403 })
           const form = context.get(FormData)
           const intent = String(form?.get("intent") ?? "create")
+          const ip = resolveClientIp(context.request)
+          const userAgent = context.request.headers.get("user-agent")
           const flashTo = (key: "error" | "success", msg: string) => {
             context.session.flash(key, msg)
             return redirect(routes.settings.href(), 303)
@@ -237,12 +307,17 @@ export default createController(routes, {
             )
             if (result._tag === "notFound") return flashTo("error", "Account not found.")
             if (result._tag === "lastAdmin") return flashTo("error", "Cannot delete the last admin.")
+            await withAuth((r) =>
+              r.recordAudit({ event: "account_deleted", userId: currentUser.id, email: result.email, ip, userAgent })
+            )
             return flashTo("success", `Account ${result.email} deleted.`)
           }
 
           if (intent === "update") {
             const parsed = s.parseSafe(updateUserSchema, form)
-            if (!parsed.success) return flashTo("error", "Enter a valid role (and an 8+ character password if changing it).")
+            if (!parsed.success) {
+              return flashTo("error", "Enter a valid role (and an 8+ character password if changing it).")
+            }
             const targetId = UserId.make(parsed.value.id)
             const newRole = parsed.value.role === "admin" ? "admin" : "user"
             const newPassword = parsed.value.password
@@ -264,6 +339,9 @@ export default createController(routes, {
             )
             if (result._tag === "notFound") return flashTo("error", "Account not found.")
             if (result._tag === "lastAdmin") return flashTo("error", "Cannot demote the last admin.")
+            await withAuth((r) =>
+              r.recordAudit({ event: "account_updated", userId: currentUser.id, email: result.email, ip, userAgent })
+            )
             return flashTo("success", `Account ${result.email} updated.`)
           }
 
@@ -286,13 +364,22 @@ export default createController(routes, {
             )
           )
           if (outcome._tag === "exists") return flashTo("error", "An account with that email already exists.")
+          await withAuth((r) =>
+            r.recordAudit({
+              event: "account_created",
+              userId: currentUser.id,
+              email: outcome.user.email,
+              ip,
+              userAgent
+            })
+          )
           return flashTo("success", `Account ${outcome.user.email} created.`)
         }
 
-        const users = await runtime.runPromise(
-          Effect.gen(function*() {
-            const repo = yield* AuthRepository
-            return yield* repo.listUsers
+        const { activity, users } = await withAuth((r) =>
+          Effect.all({
+            users: r.listUsers,
+            activity: isAdmin ? r.listRecentAudit(25) : Effect.succeed([])
           })
         )
         const adminCount = users.filter((u) => u.role === "admin").length
@@ -307,7 +394,14 @@ export default createController(routes, {
               id: u.id,
               email: u.email,
               role: u.role,
+              lastLoginAt: u.lastLoginAt !== null ? fmtAt(u.lastLoginAt) : null,
               canDelete: u.id !== currentUser.id && !(u.role === "admin" && adminCount <= 1)
+            }))}
+            activity={activity.map((a) => ({
+              event: a.event,
+              email: a.email,
+              ip: a.ipAddress,
+              at: fmtAt(a.createdAt)
             }))}
             error={error ?? null}
             success={success ?? null}

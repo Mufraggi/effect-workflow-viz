@@ -8,7 +8,15 @@ export interface SettingsUser {
   id: string
   email: string
   role: string
+  lastLoginAt: string | null
   canDelete: boolean
+}
+
+export interface ActivityEntry {
+  event: string
+  email: string | null
+  ip: string | null
+  at: string
 }
 
 export interface SettingsPageProps {
@@ -16,6 +24,7 @@ export interface SettingsPageProps {
   role: string
   isAdmin: boolean
   users: ReadonlyArray<SettingsUser>
+  activity: ReadonlyArray<ActivityEntry>
   error: string | null
   success: string | null
 }
@@ -31,7 +40,13 @@ const s = {
     textDecoration: "none",
     "&:hover": { textDecoration: "underline" }
   }),
-  h1: css({ margin: "0 0 1.5rem", fontFamily: tk.fontSerif, fontSize: "1.9rem", fontWeight: 600, letterSpacing: "-.01em" }),
+  h1: css({
+    margin: "0 0 1.5rem",
+    fontFamily: tk.fontSerif,
+    fontSize: "1.9rem",
+    fontWeight: 600,
+    letterSpacing: "-.01em"
+  }),
   card: css({
     background: tk.card,
     border: `1px solid ${tk.border}`,
@@ -124,13 +139,26 @@ const s = {
     color: "#15803d",
     border: "1px solid #15803d",
     background: "color-mix(in oklch, #15803d 10%, transparent)"
-  })
+  }),
+  lastLogin: css({ fontSize: ".72rem", color: tk.mutedFg, fontFamily: tk.fontMono, flexBasis: "100%" }),
+  actRow: css({
+    display: "flex",
+    flexWrap: "wrap",
+    gap: ".5rem 1rem",
+    alignItems: "baseline",
+    padding: ".45rem 0",
+    borderTop: `1px solid ${tk.border}`,
+    fontSize: ".8rem"
+  }),
+  actEvent: css({ fontFamily: tk.fontMono, minWidth: "9rem" }),
+  actMeta: css({ color: tk.mutedFg, fontFamily: tk.fontMono }),
+  actAt: css({ color: tk.mutedFg, marginLeft: "auto", fontFamily: tk.fontMono })
 }
 
 /** Configuration page: account info, logout, user list, and admin account creation. */
 export function SettingsPage(handle: Handle<SettingsPageProps>) {
   return () => {
-    const { email, error, isAdmin, role, success, users } = handle.props
+    const { activity, email, error, isAdmin, role, success, users } = handle.props
     return (
       <html lang="en">
         <head>
@@ -192,6 +220,7 @@ export function SettingsPage(handle: Handle<SettingsPageProps>) {
                       {u.canDelete && (
                         <button mix={[s.btnSm, s.btnDanger]} type="submit" name="intent" value="delete">Delete</button>
                       )}
+                      <span mix={s.lastLogin}>last login: {u.lastLoginAt ?? "never"}</span>
                     </form>
                   )
                   : (
@@ -213,7 +242,14 @@ export function SettingsPage(handle: Handle<SettingsPageProps>) {
                       </div>
                       <div mix={s.field}>
                         <span mix={s.lbl}>Password</span>
-                        <input mix={s.input} type="password" name="password" autocomplete="new-password" minlength={8} required />
+                        <input
+                          mix={s.input}
+                          type="password"
+                          name="password"
+                          autocomplete="new-password"
+                          minlength={8}
+                          required
+                        />
                       </div>
                       <div mix={s.field}>
                         <span mix={s.lbl}>Role</span>
@@ -222,12 +258,29 @@ export function SettingsPage(handle: Handle<SettingsPageProps>) {
                           <option value="admin">admin</option>
                         </select>
                       </div>
-                      <button mix={[a.btn, a.btnPrimary]} type="submit" name="intent" value="create">Create account</button>
+                      <button mix={[a.btn, a.btnPrimary]} type="submit" name="intent" value="create">
+                        Create account
+                      </button>
                     </form>
                   </div>
                 )
                 : <p mix={s.key}>Only admins can manage accounts.</p>}
             </section>
+
+            {isAdmin && (
+              <section mix={s.card}>
+                <h2 mix={s.cardTitle}>Recent activity</h2>
+                {activity.length === 0
+                  ? <p mix={s.key}>No activity recorded yet.</p>
+                  : activity.map((e) => (
+                    <div mix={s.actRow}>
+                      <span mix={s.actEvent}>{e.event}</span>
+                      <span mix={s.actMeta}>{e.email ?? "—"}{e.ip !== null ? ` · ${e.ip}` : ""}</span>
+                      <span mix={s.actAt}>{e.at}</span>
+                    </div>
+                  ))}
+              </section>
+            )}
           </main>
         </body>
       </html>

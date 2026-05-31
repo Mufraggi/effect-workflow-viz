@@ -23,3 +23,9 @@ export class SetupAlreadyComplete extends Schema.TaggedError<SetupAlreadyComplet
   "SetupAlreadyComplete",
   {}
 ) {}
+
+/** Too many failed login attempts from an IP within the rate-limit window. */
+export class RateLimitExceeded extends Schema.TaggedError<RateLimitExceeded>()(
+  "RateLimitExceeded",
+  { retryAfterSeconds: Schema.Number }
+) {}
