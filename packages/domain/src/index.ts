@@ -41,6 +41,12 @@ export * as RunSummary from "./run/RunSummary.js"
 
 export * as ShardId from "./run/ShardId.js"
 
+/**
+ * Decode the creation timestamp packed into an Effect Cluster Snowflake id —
+ * the basis for a run's real `startedAt` and approximate duration.
+ */
+export * as Snowflake from "./run/Snowflake.js"
+
 export * as TraceId from "./run/TraceId.js"
 
 export * as errors from "./run/errors.js"

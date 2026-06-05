@@ -12,6 +12,11 @@ export class RunSummary extends Schema.Class<RunSummary>("RunSummary")({
   runId: RunId,
   shardId: ShardId,
   traceId: Schema.NullOr(TraceId),
-  startedAtProxy: Schema.NullOr(Schema.DateFromString),
+  // Run start, from the real `last_read` timestamp. Encodes to an ISO string.
+  startedAt: Schema.NullOr(Schema.DateFromString),
+  // Approximate wall-clock duration in ms, derived from Snowflake ids
+  // (reply-id timestamp − message-id timestamp). Null when there is no reply
+  // yet, or when ids aren't Snowflakes / clock skew makes the delta non-positive.
+  durationMs: Schema.NullOr(Schema.Number),
   status: RunStatus
 }) {}

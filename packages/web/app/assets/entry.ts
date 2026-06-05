@@ -23,6 +23,5 @@ const app = run({
 
 // Surface hydration/component errors instead of swallowing them silently.
 app.addEventListener("error", (event) => {
-  // eslint-disable-next-line no-console
   console.error("Remix component error:", (event as ErrorEvent).error ?? event)
 })

@@ -27,6 +27,7 @@ import { passwordProvider } from "../auth/provider.js"
 import { runtime } from "../data/runtime.js"
 import { routes } from "../routes.js"
 import { buildFilterQuery, type RunsFilters } from "../utils/runs.js"
+import { ChartPage } from "./chart-page.js"
 import { LoginPage } from "./login-page.js"
 import { RunDetailPage } from "./run-detail-page.js"
 import { RunsPage } from "./runs-page.js"
@@ -62,22 +63,55 @@ const deleteUserSchema = f.object({
   id: f.field(s.string().pipe(minLength(1)))
 })
 
+// Parse a date-range param. Naive datetime-local values (no offset) are read as
+// UTC so the displayed range matches the UTC timestamps shown everywhere else.
+const parseDateParam = (value: string | null): Date | null => {
+  if (!value) return null
+  const withZ = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value) ? value : `${value}Z`
+  const d = new Date(withZ)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
 const parseFilter = (url: URL): ListRunsFilter => {
   const status = url.searchParams.getAll("status").filter(isRunStatus)
   const workflowName = url.searchParams.get("workflowName")
   const traceId = url.searchParams.get("traceId")
+  const from = parseDateParam(url.searchParams.get("from"))
+  const to = parseDateParam(url.searchParams.get("to"))
   return {
     ...(status.length > 0 ? { status } : {}),
     ...(workflowName ? { workflowName: workflowName as WorkflowName } : {}),
-    ...(traceId ? { traceId: traceId as TraceId } : {})
+    ...(traceId ? { traceId: traceId as TraceId } : {}),
+    ...(from ? { from } : {}),
+    ...(to ? { to } : {})
   }
 }
 
 const toFilters = (filter: ListRunsFilter): RunsFilters => ({
   status: filter.status ?? [],
   workflowName: filter.workflowName ?? null,
-  traceId: filter.traceId ?? null
+  traceId: filter.traceId ?? null,
+  from: filter.from ? filter.from.toISOString() : null,
+  to: filter.to ? filter.to.toISOString() : null
 })
+
+// The filter form always submits its text/date fields, so blank ones land in the
+// URL as `workflowName=&from=&…`. When a blank filter param is present, redirect
+// to the canonical (empty-free) query that `buildFilterQuery` already produces,
+// so the address bar stays clean. Returns the target path, or null if nothing to strip.
+const FILTER_KEYS = new Set(["status", "workflowName", "traceId", "from", "to"])
+const cleanFilterUrl = (url: URL, basePath: string): string | null => {
+  let hasBlank = false
+  for (const [key, value] of url.searchParams) {
+    if (FILTER_KEYS.has(key) && value === "") {
+      hasBlank = true
+      break
+    }
+  }
+  if (!hasBlank) return null
+  const qs = buildFilterQuery(toFilters(parseFilter(url)))
+  return qs.length > 0 ? `${basePath}?${qs}` : basePath
+}
 
 // Shared loader: parse the URL and run ListRunsQuery via the Effect runtime.
 const loadRuns = (url: URL) => {
@@ -91,6 +125,32 @@ const loadRuns = (url: URL) => {
     })
   )
 }
+
+// Chart loader: page through (PageRequest caps a single page at 200) within the
+// active filter/range until CHART_MAX, so the scatter can plot the whole window
+// at once. A non-null trailing cursor means the range still has more (truncated).
+const CHART_MAX = 1000
+const CHART_PAGE = 200
+const loadChartRuns = (url: URL) =>
+  runtime.runPromise(
+    Effect.gen(function*() {
+      const listRuns = yield* ListRunsQuery
+      const filter = parseFilter(url)
+      const items: Array<RunSummary> = []
+      let before: string | null = null
+      while (items.length < CHART_MAX) {
+        const limit = Math.min(CHART_PAGE, CHART_MAX - items.length)
+        const page: Schema.Schema.Type<typeof PaginatedRunSummary> = yield* listRuns.execute(
+          filter,
+          new PageRequest({ limit, before })
+        )
+        for (const item of page.items) items.push(item)
+        before = page.nextCursor
+        if (before === null || page.items.length === 0) break
+      }
+      return { items, nextCursor: before }
+    })
+  )
 
 const countUsers = () =>
   runtime.runPromise(
@@ -260,11 +320,52 @@ export default createController(routes, {
     home: {
       middleware: protect,
       async handler({ render, url }) {
+        const clean = cleanFilterUrl(url, routes.home.href())
+        if (clean !== null) return redirect(clean, 303)
         const page = await loadRuns(url)
         const { items, nextCursor } = encodeRuns(page)
         const filters = toFilters(parseFilter(url))
         return render(
           <RunsPage runs={items} nextCursor={nextCursor} filters={filters} query={buildFilterQuery(filters)} />
+        )
+      }
+    },
+
+    // GET /chart — server-rendered scatter of runs (start × duration); hydrates.
+    chart: {
+      middleware: protect,
+      async handler({ render, url }) {
+        const clean = cleanFilterUrl(url, routes.chart.href())
+        if (clean !== null) return redirect(clean, 303)
+        const page = await loadChartRuns(url)
+        const { items, nextCursor } = encodeRuns(page)
+        const filter = parseFilter(url)
+        const filters = toFilters(filter)
+        // Range: explicit filter bounds win; else span the data; else last 24h.
+        const times = items
+          .map((r) => r.startedAt)
+          .filter((s): s is string => s !== null)
+          .map((s) => Date.parse(s))
+        const nowMs = Date.now()
+        const fromMs = filter.from
+          ? filter.from.getTime()
+          : times.length > 0
+          ? Math.min(...times)
+          : nowMs - 24 * 3_600_000
+        const toMs = filter.to
+          ? filter.to.getTime()
+          : times.length > 0
+          ? Math.max(...times) + 1
+          : nowMs
+        return render(
+          <ChartPage
+            runs={items}
+            fromMs={fromMs}
+            toMs={toMs}
+            filters={filters}
+            query={buildFilterQuery(filters)}
+            truncated={nextCursor !== null}
+          />
         )
       }
     },

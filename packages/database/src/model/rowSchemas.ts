@@ -10,6 +10,9 @@ export const RunListingRow = Schema.Struct({
   traceId: Schema.NullOr(Schema.String),
   processed: Schema.Boolean,
   lastRead: Timestamp,
+  // The completing reply's Snowflake id — its timestamp marks the run's end,
+  // used to derive duration. Null while the run has no reply yet.
+  lastReplyId: Schema.NullOr(Schema.String),
   replyKind: Schema.NullOr(Schema.Number),
   replyPayload: Schema.NullOr(Schema.String)
 })

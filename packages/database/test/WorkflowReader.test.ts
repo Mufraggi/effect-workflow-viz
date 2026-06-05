@@ -1,5 +1,6 @@
 import { SqlClient } from "@effect/sql"
 import { MessageId } from "@template/domain/run/MessageId"
+import { snowflakeToMillis } from "@template/domain/run/Snowflake"
 import { TraceId } from "@template/domain/run/TraceId"
 import type { WorkflowName } from "@template/domain/workflow/WorkflowName"
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql"
@@ -145,6 +146,46 @@ describe("WorkflowReader (integration)", () => {
     )
     const names = new Set(result.items.map((r) => r.workflowName))
     expect(names).toEqual(new Set(["OrderFlow"]))
+  })
+
+  it("sets startedAt from last_read and durationMs from the reply id Snowflake", async () => {
+    const result = await Effect.runPromise(
+      Effect.flatMap(WorkflowReader, (r) => r.listRuns({}, { limit: 50, before: null })).pipe(Effect.provide(appLayer))
+    )
+    const byId = new Map(result.items.map((r) => [r.id, r]))
+    const parent = byId.get(PARENT_ID)!
+    // startedAt is the real last_read timestamp (seeded ~1h ago).
+    expect(parent.startedAt).not.toBeNull()
+    // duration = reply-id ts − message-id ts (both treated as Snowflakes).
+    expect(parent.durationMs).toBe(snowflakeToMillis(200000000000000001n) - snowflakeToMillis(BigInt(PARENT_ID)))
+    // A run with no reply yet has a start but no duration.
+    const running = byId.get(RUNNING_ID)!
+    expect(running.startedAt).not.toBeNull()
+    expect(running.durationMs).toBeNull()
+  })
+
+  it("listRuns filters by date range on last_read", async () => {
+    // Seeded last_read offsets: PARENT −60m, CHILD_A −50m, CHILD_B −40m,
+    // FAILED −120m, RUNNING now. A 90-minute window excludes only FAILED.
+    const now = Date.now()
+    const within = await Effect.runPromise(
+      Effect.flatMap(
+        WorkflowReader,
+        (r) => r.listRuns({ from: new Date(now - 90 * 60_000) }, { limit: 50, before: null })
+      ).pipe(Effect.provide(appLayer))
+    )
+    expect(within.items.map((r) => r.id).sort()).toEqual(
+      [CHILD_A_ID, CHILD_B_ID, PARENT_ID, RUNNING_ID].sort()
+    )
+    // A window entirely in the future returns nothing.
+    const future = await Effect.runPromise(
+      Effect.flatMap(
+        WorkflowReader,
+        (r) => r.listRuns({ from: new Date(now + 60 * 60_000) }, { limit: 50, before: null })
+      )
+        .pipe(Effect.provide(appLayer))
+    )
+    expect(future.items.length).toBe(0)
   })
 
   it("getRun returns detail with parsed input/output and children sharing trace_id", async () => {

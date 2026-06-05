@@ -1,5 +1,5 @@
-import { createAssetServer } from "remix/assets"
 import * as path from "node:path"
+import { createAssetServer } from "remix/assets"
 
 const rootDir = process.cwd()
 const isProd = process.env.NODE_ENV === "production"

@@ -15,6 +15,7 @@
     "@template/auth": "workspace:^",
     "@template/database": "workspace:^",
     "@template/domain": "workspace:^",
+    "chart.js": "^4.5.1",
     "effect": "latest",
     "pg": "^8.16.3",
     "remix": "3.0.0-beta.2",

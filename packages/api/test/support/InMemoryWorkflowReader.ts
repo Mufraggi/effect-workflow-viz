@@ -13,7 +13,8 @@ const toSummary = (d: RunDetail): RunSummary =>
     runId: d.runId,
     shardId: d.shardId,
     traceId: d.traceId,
-    startedAtProxy: d.startedAtProxy,
+    startedAt: d.startedAt,
+    durationMs: d.durationMs,
     status: d.status
   })
 

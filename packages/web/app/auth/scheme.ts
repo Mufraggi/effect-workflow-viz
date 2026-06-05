@@ -1,5 +1,5 @@
 import { AuthRepository } from "@template/auth/AuthRepository"
-import { User } from "@template/domain/auth/User"
+import type { User } from "@template/domain/auth/User"
 import { UserId } from "@template/domain/UserId"
 import { Effect } from "effect"
 import { auth, createSessionAuthScheme } from "remix/middleware/auth"

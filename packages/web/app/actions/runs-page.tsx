@@ -18,14 +18,24 @@ export interface RunsPageProps {
 const STATUS_OPTIONS = RunStatus.literals
 
 const hasActiveFilter = (f: RunsFilters): boolean =>
-  f.status.length > 0 || f.workflowName !== null || f.traceId !== null
+  f.status.length > 0 || f.workflowName !== null || f.traceId !== null || f.from !== null || f.to !== null
+
+// ISO (UTC) → the `YYYY-MM-DDTHH:mm` shape a <input type="datetime-local"> wants.
+const toLocalInput = (iso: string | null): string => (iso === null ? "" : iso.slice(0, 16))
 
 const styles = {
   body: css({ margin: 0, fontFamily: tk.fontSans, color: tk.fg, background: tk.bg }),
   container: css({ maxWidth: "72rem", margin: "0 auto", padding: "2.5rem 2rem" }),
-  h1: css({ margin: "0 0 .25rem", fontFamily: tk.fontSerif, fontSize: "2rem", fontWeight: 600, letterSpacing: "-.01em" }),
+  h1: css({
+    margin: "0 0 .25rem",
+    fontFamily: tk.fontSerif,
+    fontSize: "2rem",
+    fontWeight: 600,
+    letterSpacing: "-.01em"
+  }),
   muted: css({ color: tk.mutedFg, fontSize: ".9rem", margin: 0 }),
   headerRow: css({ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }),
+  navGroup: css({ flexShrink: 0, display: "flex", gap: "1rem" }),
   navLink: css({
     flexShrink: 0,
     fontSize: ".85rem",
@@ -116,10 +126,15 @@ export function RunsPage(handle: Handle<RunsPageProps>) {
                 <h1 mix={styles.h1}>Runs</h1>
                 <p mix={styles.muted}>Workflow runs — server-rendered with Remix 3.</p>
               </div>
-              <a mix={styles.navLink} href={routes.settings.href()}>⚙ Settings</a>
+              <span mix={styles.navGroup}>
+                <a mix={styles.navLink} href={`${routes.chart.href()}${query.length > 0 ? `?${query}` : ""}`}>
+                  📈 Chart
+                </a>
+                <a mix={styles.navLink} href={routes.settings.href()}>⚙ Settings</a>
+              </span>
             </header>
 
-            <FiltersForm filters={filters} />
+            <FiltersForm filters={filters} action={routes.home.href()} />
 
             <RunsList runs={[...runs]} nextCursor={nextCursor} query={query} />
           </main>
@@ -131,12 +146,13 @@ export function RunsPage(handle: Handle<RunsPageProps>) {
 }
 
 // Plain GET form: submitting sets the query params that the controller's
-// `parseFilter` already reads (`status` repeated, `workflowName`, `traceId`).
-function FiltersForm(handle: Handle<{ filters: RunsFilters }>) {
+// `parseFilter` already reads (status, workflowName, traceId, from, to).
+// Shared by the runs list and the chart page via the `action` prop.
+export function FiltersForm(handle: Handle<{ filters: RunsFilters; action: string }>) {
   return () => {
-    const { filters } = handle.props
+    const { action, filters } = handle.props
     return (
-      <form mix={[styles.card, styles.form]} method="get" action={routes.home.href()}>
+      <form mix={[styles.card, styles.form]} method="get" action={action}>
         <div mix={styles.field}>
           <span mix={styles.lbl}>Status</span>
           <div mix={styles.pills}>
@@ -171,9 +187,19 @@ function FiltersForm(handle: Handle<{ filters: RunsFilters }>) {
           />
         </div>
 
+        <div mix={styles.field}>
+          <span mix={styles.lbl}>From (UTC)</span>
+          <input mix={styles.input} type="datetime-local" name="from" value={toLocalInput(filters.from)} />
+        </div>
+
+        <div mix={styles.field}>
+          <span mix={styles.lbl}>To (UTC)</span>
+          <input mix={styles.input} type="datetime-local" name="to" value={toLocalInput(filters.to)} />
+        </div>
+
         <div mix={styles.actions}>
           <button mix={[styles.btn, styles.btnPrimary]} type="submit">Apply</button>
-          {hasActiveFilter(filters) && <a mix={styles.btn} href={routes.home.href()}>Clear</a>}
+          {hasActiveFilter(filters) && <a mix={styles.btn} href={action}>Clear</a>}
         </div>
       </form>
     )

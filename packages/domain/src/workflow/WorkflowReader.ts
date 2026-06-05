@@ -12,4 +12,8 @@ export interface ListRunsFilter {
   readonly status?: ReadonlyArray<RunStatus>
   readonly workflowName?: WorkflowName
   readonly traceId?: TraceId
+  // Inclusive lower / exclusive upper bound on the run start time. Applied as
+  // bounds on the id column (ids are Snowflakes, see run/Snowflake).
+  readonly from?: Date
+  readonly to?: Date
 }

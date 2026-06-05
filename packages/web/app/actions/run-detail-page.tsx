@@ -1,13 +1,13 @@
-import { RunDetail } from "@template/domain/run/RunDetail"
+import type { RunDetail } from "@template/domain/run/RunDetail"
 import type { RunStatus } from "@template/domain/run/RunStatus"
 import { findCauseLeaf } from "@template/domain/workflow/decode/exit"
 import { getOutputCause } from "@template/domain/workflow/decode/workflow"
+import type { Schema } from "effect"
 import { css, type Handle, type RemixNode } from "remix/ui"
 import { RMX_01 } from "remix/ui/theme"
-import { Schema } from "effect"
 import { routes } from "../routes.js"
 import { FONTS_HREF, STATUS_COLOR, tk } from "../ui/tokens.js"
-import { fmtDate } from "../utils/runs.js"
+import { fmtDate, fmtDuration } from "../utils/runs.js"
 
 export type RunDetailEncoded = Schema.Schema.Encoded<typeof RunDetail>
 type ChildEncoded = RunDetailEncoded["children"][number]
@@ -24,7 +24,13 @@ const d = {
     textDecoration: "none",
     "&:hover": { textDecoration: "underline" }
   }),
-  h1: css({ margin: "0 0 .35rem", fontFamily: tk.fontSerif, fontSize: "1.9rem", fontWeight: 600, letterSpacing: "-.01em" }),
+  h1: css({
+    margin: "0 0 .35rem",
+    fontFamily: tk.fontSerif,
+    fontSize: "1.9rem",
+    fontWeight: 600,
+    letterSpacing: "-.01em"
+  }),
   h2: css({
     fontSize: ".72rem",
     textTransform: "uppercase",
@@ -51,7 +57,12 @@ const d = {
     "& dt": { color: tk.mutedFg },
     "& dd": { margin: 0, fontFamily: tk.fontMono, wordBreak: "break-all" }
   }),
-  banner: css({ borderRadius: tk.radiusMd, padding: "1rem 1.25rem", fontSize: ".9rem", border: `1px solid ${tk.border}` }),
+  banner: css({
+    borderRadius: tk.radiusMd,
+    padding: "1rem 1.25rem",
+    fontSize: ".9rem",
+    border: `1px solid ${tk.border}`
+  }),
   bannerError: css({ borderColor: "#dc262655", background: "#dc26260f" }),
   bannerWarn: css({ borderColor: "#c2410c55", background: "#c2410c0f" }),
   ok: css({ color: "#15803d", margin: 0, fontWeight: 500 }),
@@ -127,10 +138,10 @@ const fmtDelta = (ms: number): string => {
 export function RunDetailPage(handle: Handle<{ run: RunDetailEncoded }>) {
   return () => {
     const { run } = handle.props
-    const parentTime = run.startedAtProxy === null ? null : new Date(run.startedAtProxy).getTime()
+    const parentTime = run.startedAt === null ? null : new Date(run.startedAt).getTime()
     const children = [...run.children].sort((a, b) => {
-      const at = a.startedAtProxy === null ? Infinity : new Date(a.startedAtProxy).getTime()
-      const bt = b.startedAtProxy === null ? Infinity : new Date(b.startedAtProxy).getTime()
+      const at = a.startedAt === null ? Infinity : new Date(a.startedAt).getTime()
+      const bt = b.startedAt === null ? Infinity : new Date(b.startedAt).getTime()
       return at - bt
     })
 
@@ -166,7 +177,9 @@ export function RunDetailPage(handle: Handle<{ run: RunDetailEncoded }>) {
                 <dt>Shard</dt>
                 <dd>{run.shardId}</dd>
                 <dt>Started (UTC)</dt>
-                <dd>{fmtDate(run.startedAtProxy)}</dd>
+                <dd>{fmtDate(run.startedAt)}</dd>
+                <dt>Duration</dt>
+                <dd>{fmtDuration(run.durationMs)}</dd>
               </dl>
             </header>
 
@@ -213,7 +226,7 @@ export function RunDetailPage(handle: Handle<{ run: RunDetailEncoded }>) {
 function ChildRow(handle: Handle<{ child: ChildEncoded; parentTime: number | null }>) {
   return () => {
     const { child, parentTime } = handle.props
-    const childTime = child.startedAtProxy === null ? null : new Date(child.startedAtProxy).getTime()
+    const childTime = child.startedAt === null ? null : new Date(child.startedAt).getTime()
     const delta = parentTime !== null && childTime !== null ? childTime - parentTime : null
     return (
       <tr>

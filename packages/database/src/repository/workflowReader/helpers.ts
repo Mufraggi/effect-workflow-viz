@@ -2,6 +2,7 @@ import type { MessageId } from "@template/domain/run/MessageId"
 import type { RunId } from "@template/domain/run/RunId"
 import { RunSummary } from "@template/domain/run/RunSummary"
 import type { ShardId } from "@template/domain/run/ShardId"
+import { snowflakeToMillis } from "@template/domain/run/Snowflake"
 import type { TraceId } from "@template/domain/run/TraceId"
 import * as Decode from "@template/domain/workflow/decode/index"
 import type { WorkflowName } from "@template/domain/workflow/WorkflowName"
@@ -37,14 +38,25 @@ export const safeBigInt = (s: string): bigint | null => {
 }
 
 export const rowToSummary = (row: RunListingRow, now: Date): RunSummary => {
+  // Start time is the real `last_read` timestamp (robust for any id scheme).
   const lastRead = parseTimestamp(row.lastRead)
+  const startedAt = lastRead
+  const id = safeBigInt(row.id)
+  const replyId = row.lastReplyId === null ? null : safeBigInt(row.lastReplyId)
+  // Duration is the only Snowflake-derived value: reply-id ts − message-id ts.
+  // Non-positive deltas (non-Snowflake ids / clock skew / no reply) → null.
+  const rawDuration = id === null || replyId === null
+    ? null
+    : snowflakeToMillis(replyId) - snowflakeToMillis(id)
+  const durationMs = rawDuration !== null && rawDuration > 0 ? rawDuration : null
   return new RunSummary({
     id: row.id as MessageId,
     workflowName: stripWorkflowPrefix(row.entityType),
     runId: row.entityId as RunId,
     shardId: row.shardId as ShardId,
     traceId: row.traceId as TraceId | null,
-    startedAtProxy: lastRead,
+    startedAt,
+    durationMs,
     status: Decode.decodeRunStatus({
       processed: row.processed,
       lastRead,

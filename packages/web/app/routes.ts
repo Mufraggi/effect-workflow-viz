@@ -20,6 +20,8 @@ export const routes = route({
   settings: "/settings",
   // Server-rendered Runs list; the table hydrates for "Load more".
   home: "/",
+  // Server-rendered scatter (start time × duration, colored by status); the Chart.js canvas hydrates.
+  chart: "/chart",
   // Paginated list as JSON; consumed by the hydrated "Load more".
   runs: get("/runs"),
   // Server-rendered run detail page.

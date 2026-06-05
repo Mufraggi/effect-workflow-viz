@@ -19,18 +19,24 @@ export class WorkflowReader extends Effect.Service<WorkflowReader>()("WorkflowRe
       limit: Schema.Number,
       before: Schema.NullOr(Schema.BigIntFromSelf),
       workflowName: Schema.NullOr(Schema.String),
-      traceId: Schema.NullOr(Schema.String)
+      traceId: Schema.NullOr(Schema.String),
+      // Date-range bounds as UTC `YYYY-MM-DD HH:MM:SS` strings, compared against
+      // the real `last_read` timestamp (robust regardless of the id scheme).
+      fromTs: Schema.NullOr(Schema.String),
+      toTs: Schema.NullOr(Schema.String)
     })
 
     const listRunsSchema = SqlSchema.findAll({
       Request: ListRunsRequest,
       Result: RunListingRow,
-      execute: ({ before, limit, traceId, workflowName }) => {
+      execute: ({ before, fromTs, limit, toTs, traceId, workflowName }) => {
         const beforeClause = before !== null ? sql`AND m.id < ${before}` : sql``
         const workflowClause = workflowName !== null
           ? sql`AND m.entity_type LIKE ${`Workflow/${workflowName}%`}`
           : sql``
         const traceClause = traceId !== null ? sql`AND m.trace_id = ${traceId}` : sql``
+        const fromClause = fromTs !== null ? sql`AND m.last_read >= ${fromTs}` : sql``
+        const toClause = toTs !== null ? sql`AND m.last_read < ${toTs}` : sql``
 
         return sql`
           SELECT
@@ -41,6 +47,7 @@ export class WorkflowReader extends Effect.Service<WorkflowReader>()("WorkflowRe
             m.trace_id,
             m.processed,
             m.last_read,
+            m.last_reply_id,
             r.kind AS reply_kind,
             r.payload AS reply_payload
           FROM cluster_messages m
@@ -50,6 +57,8 @@ export class WorkflowReader extends Effect.Service<WorkflowReader>()("WorkflowRe
             ${beforeClause}
             ${workflowClause}
             ${traceClause}
+            ${fromClause}
+            ${toClause}
           ORDER BY m.id DESC
           LIMIT ${limit}
         `
@@ -62,13 +71,19 @@ export class WorkflowReader extends Effect.Service<WorkflowReader>()("WorkflowRe
         ? new Set(filter.status)
         : null
       const fetchLimit = statusFilter === null ? page.limit : page.limit * 4
+      // last_read is stored as a naive UTC timestamp; format the bounds to match.
+      const toUtcTs = (d: Date): string => d.toISOString().slice(0, 19).replace("T", " ")
+      const fromTs = filter.from ? toUtcTs(filter.from) : null
+      const toTs = filter.to ? toUtcTs(filter.to) : null
 
       return pipe(
         listRunsSchema({
           limit: fetchLimit,
           before,
           workflowName: filter.workflowName ?? null,
-          traceId: filter.traceId ?? null
+          traceId: filter.traceId ?? null,
+          fromTs,
+          toTs
         }),
         Effect.map((rows) => {
           const now = new Date()
@@ -112,6 +127,7 @@ export class WorkflowReader extends Effect.Service<WorkflowReader>()("WorkflowRe
             m.trace_id,
             m.processed,
             m.last_read,
+            m.last_reply_id,
             r.kind AS reply_kind,
             r.payload AS reply_payload
           FROM cluster_messages m
@@ -155,6 +171,7 @@ export class WorkflowReader extends Effect.Service<WorkflowReader>()("WorkflowRe
             m.trace_id,
             m.processed,
             m.last_read,
+            m.last_reply_id,
             m.payload AS message_payload,
             m.headers,
             r.kind AS reply_kind,
@@ -195,7 +212,8 @@ export class WorkflowReader extends Effect.Service<WorkflowReader>()("WorkflowRe
                 runId: summary.runId,
                 shardId: summary.shardId,
                 traceId: summary.traceId,
-                startedAtProxy: summary.startedAtProxy,
+                startedAt: summary.startedAt,
+                durationMs: summary.durationMs,
                 status: summary.status,
                 input,
                 output,
