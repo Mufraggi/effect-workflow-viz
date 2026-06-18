@@ -8,7 +8,7 @@ import { tk } from "../../ui/tokens.js"
 
 function Svg(handle: Handle<{ viewBox?: string; width?: string; height?: string; children: RemixNode }>) {
   return () => {
-    const { children, viewBox = "0 0 24 24", width = "18", height = "18" } = handle.props
+    const { children, height = "18", viewBox = "0 0 24 24", width = "18" } = handle.props
     return (
       <svg
         width={width}
@@ -30,7 +30,7 @@ function Svg(handle: Handle<{ viewBox?: string; width?: string; height?: string;
 // Icons
 // ---------------------------------------------------------------------------
 
-function IconSearch(handle: Handle<{}>) {
+function IconSearch() {
   return () => (
     <Svg>
       <circle cx="11" cy="11" r="8" />
@@ -39,7 +39,7 @@ function IconSearch(handle: Handle<{}>) {
   )
 }
 
-function IconRefresh(handle: Handle<{}>) {
+function IconRefresh() {
   return () => (
     <Svg width="16" height="16">
       <polyline points="23 4 23 10 17 10" />
@@ -48,7 +48,7 @@ function IconRefresh(handle: Handle<{}>) {
   )
 }
 
-function IconBell(handle: Handle<{}>) {
+function IconBell() {
   return () => (
     <Svg width="16" height="16">
       <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -57,7 +57,7 @@ function IconBell(handle: Handle<{}>) {
   )
 }
 
-function IconGear(handle: Handle<{}>) {
+function IconGear() {
   return () => (
     <Svg width="16" height="16">
       <circle cx="12" cy="12" r="3" />
@@ -187,10 +187,12 @@ const s = {
 // Topbar component
 // ---------------------------------------------------------------------------
 
-export function Topbar(handle: Handle<{
-  currentEnvName?: string | null
-  isLive?: boolean
-}>) {
+export function Topbar(
+  handle: Handle<{
+    currentEnvName?: string | null
+    isLive?: boolean
+  }>
+) {
   return () => {
     const { currentEnvName, isLive = false } = handle.props
     const now = new Date()
@@ -219,9 +221,7 @@ export function Topbar(handle: Handle<{
 
         {/* Right: Status + actions */}
         <div mix={s.right}>
-          {currentEnvName && (
-            <span mix={s.badge}>{currentEnvName}</span>
-          )}
+          {currentEnvName && <span mix={s.badge}>{currentEnvName}</span>}
 
           <span mix={[s.liveIndicator, !isLive ? s.liveIndicatorOff : null]}>
             <span mix={[s.liveDot, !isLive ? s.liveDotOff : null]} />

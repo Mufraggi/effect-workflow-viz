@@ -1,7 +1,7 @@
 import { RunStatus } from "@template/domain/run/RunStatus"
 import { css, type Handle } from "remix/ui"
-import { AppLayout, type EnvInfo } from "../components/layout/AppLayout.js"
 import { RunsList } from "../assets/runs-list.entry.js"
+import { AppLayout, type EnvInfo } from "../components/layout/AppLayout.js"
 import { routes } from "../routes.js"
 import { tk } from "../ui/tokens.js"
 import { type RunsFilters, type RunSummaryEncoded } from "../utils/runs.js"
@@ -131,7 +131,7 @@ const styles = {
  */
 export function RunsPage(handle: Handle<RunsPageProps>) {
   return () => {
-    const { activeEnvId, environments, currentPath, filters, nextCursor, query, runs } = handle.props
+    const { activeEnvId, currentPath, environments, filters, nextCursor, query, runs } = handle.props
     return (
       <AppLayout
         title="Runs — Workflow Viz"
@@ -153,23 +153,28 @@ export function RunsPage(handle: Handle<RunsPageProps>) {
             </span>
           </header>
 
-          {!activeEnvId ? (
-            <div mix={styles.emptyState}>
-              <span mix={styles.emptyIcon}>🔌</span>
-              <h2 mix={styles.emptyTitle}>No environment selected</h2>
-              <p mix={styles.emptyText}>
-                Select an environment from the sidebar to start browsing workflow runs.
-                {environments.length === 0 && (
-                  <> No environments configured yet. Head to <a mix={styles.navLink} href="/settings">Settings</a> to add one.</>
-                )}
-              </p>
-            </div>
-          ) : (
-            <>
-              <FiltersForm filters={filters} action={routes.home.href()} />
-              <RunsList runs={[...runs]} nextCursor={nextCursor} query={query} />
-            </>
-          )}
+          {!activeEnvId ?
+            (
+              <div mix={styles.emptyState}>
+                <span mix={styles.emptyIcon}>🔌</span>
+                <h2 mix={styles.emptyTitle}>No environment selected</h2>
+                <p mix={styles.emptyText}>
+                  Select an environment from the sidebar to start browsing workflow runs.
+                  {environments.length === 0 && (
+                    <>
+                      No environments configured yet. Head to <a mix={styles.navLink} href="/settings">Settings</a>{" "}
+                      to add one.
+                    </>
+                  )}
+                </p>
+              </div>
+            ) :
+            (
+              <>
+                <FiltersForm filters={filters} action={routes.home.href()} />
+                <RunsList runs={[...runs]} nextCursor={nextCursor} query={query} />
+              </>
+            )}
         </main>
       </AppLayout>
     )

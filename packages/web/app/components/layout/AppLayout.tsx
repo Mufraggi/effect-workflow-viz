@@ -65,7 +65,7 @@ const s = {
  */
 export function AppLayout(handle: Handle<AppLayoutProps>) {
   return () => {
-    const { children, title = "Workflow Viz", activeNav, environments, activeEnvId, currentPath } = handle.props
+    const { activeEnvId, activeNav, children, currentPath, environments, title = "Workflow Viz" } = handle.props
 
     const currentEnv = (environments ?? []).find((e) => e.id === activeEnvId)
     const isLive = currentEnv !== undefined
@@ -80,12 +80,14 @@ export function AppLayout(handle: Handle<AppLayoutProps>) {
           <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
           <link rel="stylesheet" href={FONTS_HREF} />
           <RMX_01 />
-          <style>{`
+          <style>
+            {`
             @keyframes pulse {
               0%, 100% { opacity: 1; }
               50% { opacity: 0.35; }
             }
-          `}</style>
+          `}
+          </style>
         </head>
         <body mix={s.shell}>
           <div mix={s.layout}>

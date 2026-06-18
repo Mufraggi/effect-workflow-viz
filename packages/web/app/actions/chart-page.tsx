@@ -1,6 +1,6 @@
 import { css, type Handle } from "remix/ui"
-import { AppLayout, type EnvInfo } from "../components/layout/AppLayout.js"
 import { RunsScatter } from "../assets/runs-scatter.entry.js"
+import { AppLayout, type EnvInfo } from "../components/layout/AppLayout.js"
 import { routes } from "../routes.js"
 import { tk } from "../ui/tokens.js"
 import { type RunsFilters, type RunSummaryEncoded } from "../utils/runs.js"
@@ -68,7 +68,7 @@ const styles = {
  */
 export function ChartPage(handle: Handle<ChartPageProps>) {
   return () => {
-    const { activeEnvId, environments, currentPath, filters, fromMs, query, runs, toMs, truncated } = handle.props
+    const { activeEnvId, currentPath, environments, filters, fromMs, query, runs, toMs, truncated } = handle.props
     return (
       <AppLayout
         title="Chart — Workflow Viz"
@@ -88,29 +88,34 @@ export function ChartPage(handle: Handle<ChartPageProps>) {
             </span>
           </header>
 
-          {!activeEnvId ? (
-            <div mix={styles.emptyState}>
-              <span mix={styles.emptyIcon}>🔌</span>
-              <h2 mix={styles.emptyTitle}>No environment selected</h2>
-              <p mix={styles.emptyText}>
-                Select an environment from the sidebar to view the chart.
-                {environments.length === 0 && (
-                  <> No environments configured yet. Head to <a mix={styles.navLink} href="/settings">Settings</a> to add one.</>
-                )}
-              </p>
-            </div>
-          ) : (
-            <>
-              <FiltersForm filters={filters} action={routes.chart.href()} />
-              <RunsScatter
-                runs={[...runs]}
-                fromMs={fromMs}
-                toMs={toMs}
-                query={query}
-                truncated={truncated}
-              />
-            </>
-          )}
+          {!activeEnvId ?
+            (
+              <div mix={styles.emptyState}>
+                <span mix={styles.emptyIcon}>🔌</span>
+                <h2 mix={styles.emptyTitle}>No environment selected</h2>
+                <p mix={styles.emptyText}>
+                  Select an environment from the sidebar to view the chart.
+                  {environments.length === 0 && (
+                    <>
+                      No environments configured yet. Head to <a mix={styles.navLink} href="/settings">Settings</a>{" "}
+                      to add one.
+                    </>
+                  )}
+                </p>
+              </div>
+            ) :
+            (
+              <>
+                <FiltersForm filters={filters} action={routes.chart.href()} />
+                <RunsScatter
+                  runs={[...runs]}
+                  fromMs={fromMs}
+                  toMs={toMs}
+                  query={query}
+                  truncated={truncated}
+                />
+              </>
+            )}
         </main>
       </AppLayout>
     )

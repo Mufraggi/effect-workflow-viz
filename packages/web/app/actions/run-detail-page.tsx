@@ -10,7 +10,6 @@ import { STATUS_COLOR, tk } from "../ui/tokens.js"
 import { fmtDate, fmtDuration } from "../utils/runs.js"
 
 export type RunDetailEncoded = Schema.Schema.Encoded<typeof RunDetail>
-type ChildEncoded = RunDetailEncoded["children"][number]
 
 const d = {
   container: css({ maxWidth: "48rem", margin: "0 auto", padding: "2.5rem 2rem" }),
@@ -143,7 +142,7 @@ export interface RunDetailPageProps {
 
 export function RunDetailPage(handle: Handle<RunDetailPageProps>) {
   return () => {
-    const { run, environments, activeEnvId, currentPath } = handle.props
+    const { activeEnvId, currentPath, environments, run } = handle.props
     const parentTime = run.startedAt === null ? null : new Date(run.startedAt).getTime()
     const children = [...run.children].sort((a, b) => {
       const at = a.startedAt === null ? Infinity : new Date(a.startedAt).getTime()
@@ -217,7 +216,9 @@ export function RunDetailPage(handle: Handle<RunDetailPageProps>) {
                           </a>
                         </td>
                         <td mix={d.mono}>{ch.runId}</td>
-                        <td><span mix={badge(ch.status)}>{ch.status}</span></td>
+                        <td>
+                          <span mix={badge(ch.status)}>{ch.status}</span>
+                        </td>
                         <td mix={d.tnum}>{fmtDuration(ch.durationMs)}</td>
                         <td mix={d.tnum}>{delta !== null ? fmtDelta(delta) : "—"}</td>
                       </tr>
@@ -246,7 +247,6 @@ function OutputSection(handle: Handle<{ status: RunStatus; output: unknown }>) {
       case "crashed":
       case "failed_app": {
         const cause = getOutputCause(output)
-        const isError = status !== "success"
 
         if (cause === null) return null
 
@@ -271,7 +271,7 @@ function OutputSection(handle: Handle<{ status: RunStatus; output: unknown }>) {
           <div>
             {msg !== null && (
               <div mix={[d.banner, d.bannerError]}>
-                <strong>{status === "crashed" ? "Defect" : "Error"}: </strong>
+                <strong>{status === "crashed" ? "Defect" : "Error"}:</strong>
                 {msg}
               </div>
             )}

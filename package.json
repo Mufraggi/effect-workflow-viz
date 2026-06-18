@@ -12,7 +12,7 @@
     "build": "tsc -b tsconfig.build.json && pnpm --recursive --parallel run build",
     "check": "tsc -b tsconfig.json",
     "check-recursive": "pnpm --recursive exec tsc -b tsconfig.json",
-    "lint": "eslint \"**/{src,test,examples,scripts,dtslint}/**/*.{ts,mjs}\"",
+    "lint": "eslint \"packages/**/*.{ts,tsx,mjs}\" \"scripts/**/*.{ts,mjs}\"",
     "lint-fix": "pnpm lint --fix",
     "test": "vitest",
     "coverage": "vitest --coverage"

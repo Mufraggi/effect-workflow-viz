@@ -62,6 +62,12 @@ export default [
       "prefer-destructuring": "off",
       "sort-imports": "off",
 
+      // --- Strengthened core rules ---
+      "eqeqeq": ["error", "smart"],
+      "no-var": "error",
+      "prefer-const": "error",
+      "no-console": "warn",
+
       "no-restricted-syntax": ["error", {
         selector: "CallExpression[callee.property.name='push'] > SpreadElement.arguments",
         message: "Do not use spread arguments in Array.push"
@@ -86,9 +92,9 @@ export default [
       "@typescript-eslint/member-delimiter-style": 0,
       "@typescript-eslint/no-non-null-assertion": "off",
       "@typescript-eslint/ban-types": "off",
-      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-empty-interface": "off",
-      "@typescript-eslint/consistent-type-imports": "warn",
+      "@typescript-eslint/consistent-type-imports": "error",
 
       "@typescript-eslint/no-unused-vars": ["error", {
         argsIgnorePattern: "^_",

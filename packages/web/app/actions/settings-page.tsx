@@ -204,7 +204,7 @@ const s = {
 
 export function SettingsPage(handle: Handle<SettingsPageProps>) {
   return () => {
-    const { activity, email, environments, error, isAdmin, role, success, users, activeEnvId, tab } = handle.props
+    const { activeEnvId, activity, email, environments, error, isAdmin, role, success, tab, users } = handle.props
     const envInfo = environments.map((e) => ({ id: e.id, name: e.name, isDefault: e.isDefault }))
 
     const tabLink = (id: string, label: string) => (

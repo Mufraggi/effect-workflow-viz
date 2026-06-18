@@ -30,7 +30,7 @@ function Svg(handle: Handle<{ viewBox?: string; children: RemixNode }>) {
 // Nav icons
 // ---------------------------------------------------------------------------
 
-function IconOverview(handle: Handle<{}>) {
+function IconOverview() {
   return () => (
     <Svg>
       <rect x="3" y="3" width="7" height="7" />
@@ -41,7 +41,7 @@ function IconOverview(handle: Handle<{}>) {
   )
 }
 
-function IconNodes(handle: Handle<{}>) {
+function IconNodes() {
   return () => (
     <Svg>
       <rect x="2" y="2" width="8" height="8" rx="2" />
@@ -51,7 +51,7 @@ function IconNodes(handle: Handle<{}>) {
   )
 }
 
-function IconEntities(handle: Handle<{}>) {
+function IconEntities() {
   return () => (
     <Svg>
       <path d="M4 6h16" />
@@ -61,7 +61,7 @@ function IconEntities(handle: Handle<{}>) {
   )
 }
 
-function IconShards(handle: Handle<{}>) {
+function IconShards() {
   return () => (
     <Svg>
       <path d="M12 2L2 7l10 5 10-5-10-5z" />
@@ -71,7 +71,7 @@ function IconShards(handle: Handle<{}>) {
   )
 }
 
-function IconExecutions(handle: Handle<{}>) {
+function IconExecutions() {
   return () => (
     <Svg>
       <polygon points="6 3 20 12 6 21 6 3" />
@@ -79,7 +79,7 @@ function IconExecutions(handle: Handle<{}>) {
   )
 }
 
-function IconActivities(handle: Handle<{}>) {
+function IconActivities() {
   return () => (
     <Svg viewBox="0 0 24 24">
       <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
@@ -87,7 +87,7 @@ function IconActivities(handle: Handle<{}>) {
   )
 }
 
-function IconDefinitions(handle: Handle<{}>) {
+function IconDefinitions() {
   return () => (
     <Svg>
       <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
@@ -99,7 +99,7 @@ function IconDefinitions(handle: Handle<{}>) {
   )
 }
 
-function IconSchedules(handle: Handle<{}>) {
+function IconSchedules() {
   return () => (
     <Svg>
       <circle cx="12" cy="12" r="10" />
@@ -108,7 +108,7 @@ function IconSchedules(handle: Handle<{}>) {
   )
 }
 
-function IconAlerts(handle: Handle<{}>) {
+function IconAlerts() {
   return () => (
     <Svg>
       <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -117,7 +117,7 @@ function IconAlerts(handle: Handle<{}>) {
   )
 }
 
-function IconSettings(handle: Handle<{}>) {
+function IconSettings() {
   return () => (
     <Svg>
       <circle cx="12" cy="12" r="3" />
@@ -133,7 +133,7 @@ function IconSettings(handle: Handle<{}>) {
 interface NavItem {
   id: string
   label: string
-  icon: (handle: Handle<{}>) => () => RemixNode
+  icon: () => () => RemixNode
   section: "overview" | "cluster" | "workflows" | "bottom"
   href?: string
 }
@@ -374,14 +374,16 @@ const s = {
 // Sidebar component
 // ---------------------------------------------------------------------------
 
-export function Sidebar(handle: Handle<{
-  activeItem?: string
-  environments?: ReadonlyArray<{ id: string; name: string; isDefault: boolean }>
-  activeEnvId?: string | null
-  currentPath?: string
-}>) {
+export function Sidebar(
+  handle: Handle<{
+    activeItem?: string
+    environments?: ReadonlyArray<{ id: string; name: string; isDefault: boolean }>
+    activeEnvId?: string | null
+    currentPath?: string
+  }>
+) {
   return () => {
-    const { activeItem, environments = [], activeEnvId = null, currentPath = "/" } = handle.props
+    const { activeEnvId = null, activeItem, currentPath = "/", environments = [] } = handle.props
 
     const currentEnv = environments.find((e) => e.id === activeEnvId)
     const hasEnvs = environments.length > 0
@@ -413,34 +415,34 @@ export function Sidebar(handle: Handle<{
       <aside mix={s.shell}>
         {/* ── Header: logo + environment info ── */}
         <div mix={s.header}>
-          {currentEnv && (
-            <div mix={s.logo}>{currentEnv.name.charAt(0).toUpperCase()}</div>
-          )}
+          {currentEnv && <div mix={s.logo}>{currentEnv.name.charAt(0).toUpperCase()}</div>}
           <div mix={s.headerText}>
-            {currentEnv ? (
-              <span mix={s.envName}>{currentEnv.name}</span>
-            ) : (
+            {currentEnv ? <span mix={s.envName}>{currentEnv.name}</span> : (
               <span mix={s.envNameLink}>
                 {hasEnvs ? "Select environment" : "No environment"}
               </span>
             )}
             <span mix={s.statusRow}>
-              {currentEnv ? (
-                <>
-                  <span mix={s.statusDot} />
-                  <span mix={s.statusLabel}>Connected</span>
-                </>
-              ) : hasEnvs ? (
-                <>
-                  <span mix={s.statusDotOff} />
-                  <span mix={s.statusLabelOff}>Disconnected</span>
-                </>
-              ) : (
-                <>
-                  <span mix={s.statusDotOff} />
-                  <span mix={s.statusLabelOff}>Not configured</span>
-                </>
-              )}
+              {currentEnv ?
+                (
+                  <>
+                    <span mix={s.statusDot} />
+                    <span mix={s.statusLabel}>Connected</span>
+                  </>
+                ) :
+                hasEnvs ?
+                (
+                  <>
+                    <span mix={s.statusDotOff} />
+                    <span mix={s.statusLabelOff}>Disconnected</span>
+                  </>
+                ) :
+                (
+                  <>
+                    <span mix={s.statusDotOff} />
+                    <span mix={s.statusLabelOff}>Not configured</span>
+                  </>
+                )}
             </span>
           </div>
         </div>
@@ -453,7 +455,8 @@ export function Sidebar(handle: Handle<{
               {!activeEnvId && <option value="">— Select —</option>}
               {environments.map((env) => (
                 <option value={env.id} selected={env.id === activeEnvId}>
-                  {env.name}{env.isDefault ? " ★" : ""}
+                  {env.name}
+                  {env.isDefault ? " ★" : ""}
                 </option>
               ))}
             </select>
