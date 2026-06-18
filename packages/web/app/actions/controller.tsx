@@ -3,6 +3,7 @@ import { GetRunQuery } from "@template/api/run/query/GetRunQuery"
 import { ListRunsQuery } from "@template/api/run/query/ListRunsQuery"
 import { AuthRepository } from "@template/auth/AuthRepository"
 import { hashPassword } from "@template/auth/password"
+import { makeWorkflowReader } from "@template/database/repository/workflowReader/WorkflowReader"
 import { Email } from "@template/domain/auth/Email"
 import { PageRequest, Paginated } from "@template/domain/Pagination"
 import { MessageId } from "@template/domain/run/MessageId"
@@ -13,6 +14,8 @@ import type { TraceId } from "@template/domain/run/TraceId"
 import { UserId } from "@template/domain/UserId"
 import type { WorkflowName } from "@template/domain/workflow/WorkflowName"
 import type { ListRunsFilter } from "@template/domain/workflow/WorkflowReader"
+import { DbManager } from "@template/environments/DbManager"
+import { EnvironmentRepository } from "@template/environments/EnvironmentRepository"
 import { Effect, Option, Schema } from "effect"
 import { completeAuth, verifyCredentials } from "remix/auth"
 import * as s from "remix/data-schema"
@@ -113,15 +116,28 @@ const cleanFilterUrl = (url: URL, basePath: string): string | null => {
   return qs.length > 0 ? `${basePath}?${qs}` : basePath
 }
 
+// ---------------------------------------------------------------------------
+// Loaders
+// ---------------------------------------------------------------------------
+
 // Shared loader: parse the URL and run ListRunsQuery via the Effect runtime.
-const loadRuns = (url: URL) => {
+// When an envId is present in the session, delegates to the env-aware version.
+const loadRuns = (url: URL, session?: { get: (key: string) => any }) => {
   const limitRaw = Number(url.searchParams.get("limit"))
   const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 200) : 50
   const before = url.searchParams.get("before")
+  const envId = session?.get?.("envId") as string | undefined
+  const filter = parseFilter(url)
+  const page = new PageRequest({ limit, before })
+
+  if (envId) {
+    return loadRunsWithEnv(envId, filter, page)
+  }
+
   return runtime.runPromise(
     Effect.gen(function*() {
       const listRuns = yield* ListRunsQuery
-      return yield* listRuns.execute(parseFilter(url), new PageRequest({ limit, before }))
+      return yield* listRuns.execute(filter, page)
     })
   )
 }
@@ -131,8 +147,14 @@ const loadRuns = (url: URL) => {
 // at once. A non-null trailing cursor means the range still has more (truncated).
 const CHART_MAX = 1000
 const CHART_PAGE = 200
-const loadChartRuns = (url: URL) =>
-  runtime.runPromise(
+const loadChartRuns = (url: URL, session?: { get: (key: string) => any }) => {
+  const envId = session?.get?.("envId") as string | undefined
+
+  if (envId) {
+    return loadChartRunsWithEnv(envId, url)
+  }
+
+  return runtime.runPromise(
     Effect.gen(function*() {
       const listRuns = yield* ListRunsQuery
       const filter = parseFilter(url)
@@ -151,6 +173,7 @@ const loadChartRuns = (url: URL) =>
       return { items, nextCursor: before }
     })
   )
+}
 
 const countUsers = () =>
   runtime.runPromise(
@@ -166,7 +189,91 @@ function withAuth<A>(f: (repo: AuthRepository) => Effect.Effect<A>): Promise<A> 
   return runtime.runPromise(Effect.flatMap(AuthRepository, f))
 }
 
-// Brute-force lockout: block an IP after this many failures within the window.
+function runWithEnvs<A>(f: (repo: EnvironmentRepository) => Effect.Effect<A>): Promise<A> {
+  return runtime.runPromise(Effect.flatMap(EnvironmentRepository, f))
+}
+
+// ---------------------------------------------------------------------------
+// Environment-aware loaders — use DbManager to get a PgClient for the
+// selected environment, then build a WorkflowReader from it.
+
+const loadRunsWithEnv = (
+  envId: string,
+  filter: ListRunsFilter,
+  page: PageRequest
+): Promise<any> =>
+  runtime.runPromise(
+    Effect.gen(function*() {
+      const db = yield* DbManager
+      const pg: any = yield* db.getClient(envId)
+      const reader = makeWorkflowReader(pg)
+      return yield* reader.listRuns(filter, page)
+    })
+  )
+
+const loadChartRunsWithEnv = (
+  envId: string,
+  url: URL
+): Promise<any> =>
+  runtime.runPromise(
+    Effect.gen(function*() {
+      const db = yield* DbManager
+      const pg: any = yield* db.getClient(envId)
+      const reader = makeWorkflowReader(pg)
+      const filter = parseFilter(url)
+      const items: Array<RunSummary> = []
+      let before: string | null = null
+      while (items.length < CHART_MAX) {
+        const limit = Math.min(CHART_PAGE, CHART_MAX - items.length)
+        const page: { items: ReadonlyArray<RunSummary>; nextCursor: string | null } = yield* reader.listRuns(
+          filter,
+          new PageRequest({ limit, before })
+        )
+        for (const item of page.items) items.push(item)
+        before = page.nextCursor
+        if (before === null || page.items.length === 0) break
+      }
+      return { items, nextCursor: before }
+    })
+  )
+
+const loadRunDetailWithEnv = (
+  envId: string,
+  messageId: MessageId
+): Promise<any> =>
+  runtime.runPromise(
+    Effect.gen(function*() {
+      const db = yield* DbManager
+      const pg: any = yield* db.getClient(envId)
+      const reader = makeWorkflowReader(pg)
+      const run = yield* reader.getRun(messageId)
+      return { _tag: "ok" as const, run }
+    }).pipe(
+      (Effect.catchTag as any)("RunNotFound", () => Effect.succeed({ _tag: "notFound" as const }))
+    )
+  )
+
+const loadChildrenWithEnv = (
+  envId: string,
+  messageId: MessageId
+): Promise<any> =>
+  runtime.runPromise(
+    Effect.gen(function*() {
+      const db = yield* DbManager
+      const pg: any = yield* db.getClient(envId)
+      const reader = makeWorkflowReader(pg)
+      const run = yield* reader.getRun(messageId)
+      if (run.traceId === null) {
+        return { _tag: "ok" as const, children: [] as ReadonlyArray<RunSummary> }
+      }
+      const children = yield* reader.getChildRuns(run.traceId, messageId)
+      return { _tag: "ok" as const, children }
+    }).pipe(
+      (Effect.catchTag as any)("RunNotFound", () => Effect.succeed({ _tag: "notFound" as const }))
+    )
+  )
+
+// Brute-force lockout// Brute-force lockout: block an IP after this many failures within the window.
 const RATE_LIMIT_WINDOW_MINUTES = 15
 const RATE_LIMIT_MAX_FAILURES = 10
 
@@ -316,17 +423,54 @@ export default createController(routes, {
       return redirect(routes.login.href(), 303)
     },
 
+    // GET /select-env — switch active environment (stored in session).
+    // Accepts `?envId=xxx&returnTo=...` from a GET form submission.
+    selectEnv: {
+      middleware: protect,
+      async handler(context) {
+        const envId = context.url.searchParams.get("envId")
+        if (!envId) return redirect(routes.home.href(), 303)
+
+        // Verify the environment exists before storing.
+        const env = await runtime.runPromise(
+          Effect.gen(function*() {
+            const repo = yield* EnvironmentRepository
+            return yield* repo.getById(envId)
+          })
+        )
+        if (!env) return redirect(routes.home.href(), 303)
+
+        context.session.set("envId", envId)
+
+        const returnTo = context.url.searchParams.get("returnTo") || routes.home.href()
+        return redirect(safeReturnTo(returnTo), 303)
+      }
+    },
+
     // GET / — server-rendered Runs page; the table hydrates for "Load more".
     home: {
       middleware: protect,
-      async handler({ render, url }) {
+      async handler({ render, session, url }) {
         const clean = cleanFilterUrl(url, routes.home.href())
         if (clean !== null) return redirect(clean, 303)
-        const page = await loadRuns(url)
+        const page = await loadRuns(url, session)
         const { items, nextCursor } = encodeRuns(page)
         const filters = toFilters(parseFilter(url))
+        const envId = session?.get?.("envId") as string | undefined
+        const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
+          id: e.id,
+          name: e.name,
+          isDefault: e.isDefault
+        }))
         return render(
-          <RunsPage runs={items} nextCursor={nextCursor} filters={filters} query={buildFilterQuery(filters)} />
+          <RunsPage
+            runs={items}
+            nextCursor={nextCursor}
+            filters={filters}
+            query={buildFilterQuery(filters)}
+            environments={environments}
+            activeEnvId={envId ?? null}
+          />
         )
       }
     },
@@ -334,10 +478,10 @@ export default createController(routes, {
     // GET /chart — server-rendered scatter of runs (start × duration); hydrates.
     chart: {
       middleware: protect,
-      async handler({ render, url }) {
+      async handler({ render, session, url }) {
         const clean = cleanFilterUrl(url, routes.chart.href())
         if (clean !== null) return redirect(clean, 303)
-        const page = await loadChartRuns(url)
+        const page = await loadChartRuns(url, session)
         const { items, nextCursor } = encodeRuns(page)
         const filter = parseFilter(url)
         const filters = toFilters(filter)
@@ -357,6 +501,12 @@ export default createController(routes, {
           : times.length > 0
           ? Math.max(...times) + 1
           : nowMs
+        const envId = session?.get?.("envId") as string | undefined
+        const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
+          id: e.id,
+          name: e.name,
+          isDefault: e.isDefault
+        }))
         return render(
           <ChartPage
             runs={items}
@@ -365,6 +515,8 @@ export default createController(routes, {
             filters={filters}
             query={buildFilterQuery(filters)}
             truncated={nextCursor !== null}
+            environments={environments}
+            activeEnvId={envId ?? null}
           />
         )
       }
@@ -484,6 +636,9 @@ export default createController(routes, {
           })
         )
         const adminCount = users.filter((u) => u.role === "admin").length
+        const environments = isAdmin
+          ? await runWithEnvs((r) => r.list)
+          : []
         const error = context.session.get("error") as string | undefined
         const success = context.session.get("success") as string | undefined
         return context.render(
@@ -504,6 +659,16 @@ export default createController(routes, {
               ip: a.ipAddress,
               at: fmtAt(a.createdAt)
             }))}
+            environments={environments.map((e) => ({
+              id: e.id,
+              name: e.name,
+              host: e.host,
+              port: e.port,
+              user: e.user,
+              dbName: e.dbName,
+              ssl: e.ssl,
+              isDefault: e.isDefault
+            }))}
             error={error ?? null}
             success={success ?? null}
           />
@@ -514,8 +679,8 @@ export default createController(routes, {
     // GET /runs — paginated list as JSON; consumed by the hydrated "Load more".
     runs: {
       middleware: protect,
-      async handler({ url }) {
-        const page = await loadRuns(url)
+      async handler({ session, url }) {
+        const page = await loadRuns(url, session)
         return Response.json(encodeRuns(page))
       }
     },
@@ -523,17 +688,21 @@ export default createController(routes, {
     // GET /runs/:messageId — server-rendered run detail page.
     runShow: {
       middleware: protect,
-      async handler({ params, render }) {
+      async handler({ params, render, session }) {
         const messageId = decodeMessageId(params.messageId)
-        const result = await runtime.runPromise(
-          Effect.gen(function*() {
-            const getRun = yield* GetRunQuery
-            return yield* getRun.execute(messageId)
-          }).pipe(
-            Effect.map((run) => ({ _tag: "ok" as const, run })),
-            Effect.catchTag("RunNotFound", () => Effect.succeed({ _tag: "notFound" as const }))
+        const envId = session?.get?.("envId") as string | undefined
+
+        const result = envId
+          ? await loadRunDetailWithEnv(envId, messageId)
+          : await runtime.runPromise(
+            Effect.gen(function*() {
+              const getRun = yield* GetRunQuery
+              return yield* getRun.execute(messageId)
+            }).pipe(
+              Effect.map((run) => ({ _tag: "ok" as const, run })),
+              Effect.catchTag("RunNotFound", () => Effect.succeed({ _tag: "notFound" as const }))
+            )
           )
-        )
 
         if (result._tag === "notFound") {
           return new Response("Run not found", { status: 404 })
@@ -545,25 +714,38 @@ export default createController(routes, {
     // GET /runs/:messageId/children — sibling runs sharing the trace.
     runChildren: {
       middleware: protect,
-      async handler({ params }) {
+      async handler({ params, session }) {
         const messageId = decodeMessageId(params.messageId)
-        const result = await runtime.runPromise(
-          Effect.gen(function*() {
-            const getRun = yield* GetRunQuery
-            const getChildRuns = yield* GetChildRunsQuery
-            const run = yield* getRun.execute(messageId)
-            if (run.traceId === null) return { _tag: "ok" as const, children: [] as ReadonlyArray<RunSummary> }
-            const children = yield* getChildRuns.execute(run.traceId, messageId)
-            return { _tag: "ok" as const, children }
-          }).pipe(
-            Effect.catchTag("RunNotFound", () => Effect.succeed({ _tag: "notFound" as const }))
+        const envId = session?.get?.("envId") as string | undefined
+
+        const result = envId
+          ? await loadChildrenWithEnv(envId, messageId)
+          : await runtime.runPromise(
+            Effect.gen(function*() {
+              const getRun = yield* GetRunQuery
+              const getChildRuns = yield* GetChildRunsQuery
+              const run = yield* getRun.execute(messageId)
+              if (run.traceId === null) return { _tag: "ok" as const, children: [] as ReadonlyArray<RunSummary> }
+              const children = yield* getChildRuns.execute(run.traceId, messageId)
+              return { _tag: "ok" as const, children }
+            }).pipe(
+              Effect.catchTag("RunNotFound", () => Effect.succeed({ _tag: "notFound" as const }))
+            )
           )
-        )
 
         if (result._tag === "notFound") {
           return new Response("Run not found", { status: 404 })
         }
         return Response.json(encodeChildren(result.children))
+      }
+    },
+
+    // GET /environments — JSON list of all configured environments.
+    environments: {
+      middleware: protect,
+      async handler() {
+        const envs = await runWithEnvs((r) => r.list)
+        return Response.json(envs)
       }
     }
   }

@@ -1,8 +1,8 @@
 import { type Handle } from "remix/ui"
 import { RMX_01 } from "remix/ui/theme"
 import { routes } from "../routes.js"
+import { authStyles as s } from "../ui/auth-styles.js"
 import { FONTS_HREF } from "../ui/tokens.js"
-import { authStyles as s } from "./auth-styles.js"
 
 export interface LoginPageProps {
   error: string | null

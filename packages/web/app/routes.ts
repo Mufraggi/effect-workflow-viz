@@ -27,5 +27,9 @@ export const routes = route({
   // Server-rendered run detail page.
   runShow: "/runs/:messageId",
   // Sibling runs sharing the trace, as JSON.
-  runChildren: get("/runs/:messageId/children")
+  runChildren: get("/runs/:messageId/children"),
+  // API endpoint for environment CRUD.
+  environments: get("/environments"),
+  // API endpoint — switch active environment (stored in session).
+  selectEnv: get("/select-env")
 })

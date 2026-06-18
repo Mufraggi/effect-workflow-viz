@@ -1,10 +1,10 @@
 import { css, type Handle } from "remix/ui"
 import { RMX_01 } from "remix/ui/theme"
+import { RunsScatter } from "../assets/runs-scatter.entry.js"
 import { routes } from "../routes.js"
 import { FONTS_HREF, tk } from "../ui/tokens.js"
 import { type RunsFilters, type RunSummaryEncoded } from "../utils/runs.js"
 import { FiltersForm } from "./runs-page.js"
-import { RunsScatter } from "./runs-scatter.entry.js"
 
 export interface ChartPageProps {
   runs: ReadonlyArray<RunSummaryEncoded>
@@ -13,6 +13,8 @@ export interface ChartPageProps {
   filters: RunsFilters
   query: string
   truncated: boolean
+  environments: ReadonlyArray<{ id: string; name: string; isDefault: boolean }>
+  activeEnvId: string | null
 }
 
 const styles = {
@@ -44,7 +46,7 @@ const styles = {
  */
 export function ChartPage(handle: Handle<ChartPageProps>) {
   return () => {
-    const { filters, fromMs, query, runs, toMs, truncated } = handle.props
+    const { activeEnvId, environments, filters, fromMs, query, runs, toMs, truncated } = handle.props
     return (
       <html lang="en">
         <head>
@@ -64,6 +66,50 @@ export function ChartPage(handle: Handle<ChartPageProps>) {
                 <p mix={styles.muted}>Start time × duration (log), colored by status.</p>
               </div>
               <span mix={styles.navGroup}>
+                {/* Environment switcher: GET form submits ?envId=xxx&returnTo=... */}
+                <form method="get" action={routes.selectEnv.href()} style={{ display: "inline" }}>
+                  <select
+                    name="envId"
+                    style={{
+                      padding: ".35rem .5rem",
+                      border: "1px solid #e4e4e7",
+                      borderRadius: "6px",
+                      background: "inherit",
+                      color: "inherit",
+                      font: "inherit",
+                      fontSize: ".8rem",
+                      cursor: "pointer"
+                    }}
+                  >
+                    {!activeEnvId && <option value="">Default (env vars)</option>}
+                    {environments.map((e) => (
+                      <option
+                        value={e.id}
+                        selected={e.id === activeEnvId}
+                      >
+                        {e.name}
+                        {e.isDefault ? " ★" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <input type="hidden" name="returnTo" value={"/"} />
+                  <button
+                    type="submit"
+                    style={{
+                      padding: ".35rem .6rem",
+                      border: "1px solid #e4e4e7",
+                      borderRadius: "6px",
+                      background: "inherit",
+                      color: "inherit",
+                      font: "inherit",
+                      fontSize: ".8rem",
+                      cursor: "pointer",
+                      marginLeft: ".35rem"
+                    }}
+                  >
+                    Go
+                  </button>
+                </form>
                 <a mix={styles.navLink} href={`${routes.home.href()}${query.length > 0 ? `?${query}` : ""}`}>≣ List</a>
                 <a mix={styles.navLink} href={routes.settings.href()}>⚙ Settings</a>
               </span>

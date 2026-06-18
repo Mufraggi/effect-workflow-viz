@@ -5,6 +5,7 @@
     { "path": "packages/domain" },
     { "path": "packages/database" },
     { "path": "packages/auth" },
-    { "path": "packages/api" }
+    { "path": "packages/api" },
+    { "path": "packages/environments" }
   ]
 }

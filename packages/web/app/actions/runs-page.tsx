@@ -1,10 +1,10 @@
 import { RunStatus } from "@template/domain/run/RunStatus"
 import { css, type Handle } from "remix/ui"
 import { RMX_01 } from "remix/ui/theme"
+import { RunsList } from "../assets/runs-list.entry.js"
 import { routes } from "../routes.js"
 import { FONTS_HREF, tk } from "../ui/tokens.js"
 import { type RunsFilters, type RunSummaryEncoded } from "../utils/runs.js"
-import { RunsList } from "./runs-list.entry.js"
 
 export type { RunsFilters, RunSummaryEncoded }
 
@@ -13,6 +13,8 @@ export interface RunsPageProps {
   nextCursor: string | null
   filters: RunsFilters
   query: string
+  environments: ReadonlyArray<{ id: string; name: string; isDefault: boolean }>
+  activeEnvId: string | null
 }
 
 const STATUS_OPTIONS = RunStatus.literals
@@ -107,7 +109,7 @@ const styles = {
  */
 export function RunsPage(handle: Handle<RunsPageProps>) {
   return () => {
-    const { filters, nextCursor, query, runs } = handle.props
+    const { activeEnvId, environments, filters, nextCursor, query, runs } = handle.props
     return (
       <html lang="en">
         <head>
@@ -127,6 +129,50 @@ export function RunsPage(handle: Handle<RunsPageProps>) {
                 <p mix={styles.muted}>Workflow runs — server-rendered with Remix 3.</p>
               </div>
               <span mix={styles.navGroup}>
+                {/* Environment switcher: GET form submits ?envId=xxx&returnTo=... */}
+                <form method="get" action={routes.selectEnv.href()} style={{ display: "inline" }}>
+                  <select
+                    name="envId"
+                    style={{
+                      padding: ".35rem .5rem",
+                      border: "1px solid #e4e4e7",
+                      borderRadius: "6px",
+                      background: "inherit",
+                      color: "inherit",
+                      font: "inherit",
+                      fontSize: ".8rem",
+                      cursor: "pointer"
+                    }}
+                  >
+                    {!activeEnvId && <option value="">Default (env vars)</option>}
+                    {environments.map((e) => (
+                      <option
+                        value={e.id}
+                        selected={e.id === activeEnvId}
+                      >
+                        {e.name}
+                        {e.isDefault ? " ★" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <input type="hidden" name="returnTo" value={"/"} />
+                  <button
+                    type="submit"
+                    style={{
+                      padding: ".35rem .6rem",
+                      border: "1px solid #e4e4e7",
+                      borderRadius: "6px",
+                      background: "inherit",
+                      color: "inherit",
+                      font: "inherit",
+                      fontSize: ".8rem",
+                      cursor: "pointer",
+                      marginLeft: ".35rem"
+                    }}
+                  >
+                    Go
+                  </button>
+                </form>
                 <a mix={styles.navLink} href={`${routes.chart.href()}${query.length > 0 ? `?${query}` : ""}`}>
                   📈 Chart
                 </a>

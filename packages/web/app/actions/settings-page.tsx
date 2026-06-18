@@ -1,8 +1,8 @@
 import { css, type Handle } from "remix/ui"
 import { RMX_01 } from "remix/ui/theme"
 import { routes } from "../routes.js"
+import { authStyles as a } from "../ui/auth-styles.js"
 import { FONTS_HREF, tk } from "../ui/tokens.js"
-import { authStyles as a } from "./auth-styles.js"
 
 export interface SettingsUser {
   id: string
@@ -19,12 +19,24 @@ export interface ActivityEntry {
   at: string
 }
 
+export interface EnvironmentEntry {
+  id: string
+  name: string
+  host: string
+  port: string
+  user: string
+  dbName: string
+  ssl: boolean
+  isDefault: boolean
+}
+
 export interface SettingsPageProps {
   email: string
   role: string
   isAdmin: boolean
   users: ReadonlyArray<SettingsUser>
   activity: ReadonlyArray<ActivityEntry>
+  environments: ReadonlyArray<EnvironmentEntry>
   error: string | null
   success: string | null
 }
@@ -158,7 +170,7 @@ const s = {
 /** Configuration page: account info, logout, user list, and admin account creation. */
 export function SettingsPage(handle: Handle<SettingsPageProps>) {
   return () => {
-    const { activity, email, error, isAdmin, role, success, users } = handle.props
+    const { activity, email, environments, error, isAdmin, role, success, users } = handle.props
     return (
       <html lang="en">
         <head>
@@ -266,6 +278,82 @@ export function SettingsPage(handle: Handle<SettingsPageProps>) {
                 )
                 : <p mix={s.key}>Only admins can manage accounts.</p>}
             </section>
+
+            {isAdmin && (
+              <section mix={s.card}>
+                <h2 mix={s.cardTitle}>Environments</h2>
+                <p mix={s.key}>
+                  Configure Postgres connection details for your environments. Use the selector in the top nav to switch
+                  between them.
+                </p>
+                {environments.length === 0 && <p mix={s.key}>No environments configured yet.</p>}
+                {environments.map((env) => (
+                  <form method="post" action={routes.settings.href()}>
+                    <input type="hidden" name="envId" value={env.id} />
+                    <div mix={s.userRow}>
+                      <span mix={s.userEmail}>
+                        {env.name}
+                      </span>
+                      <span mix={s.key}>{env.host}:{env.port}/{env.dbName}</span>
+                      {env.isDefault && <span mix={s.roleTag}>default</span>}
+                      {!env.isDefault && (
+                        <button mix={s.btnSm} type="submit" name="intent" value="set-default-env">
+                          Make default
+                        </button>
+                      )}
+                      <button mix={[s.btnSm, s.btnDanger]} type="submit" name="intent" value="delete-env">
+                        Delete
+                      </button>
+                    </div>
+                  </form>
+                ))}
+
+                <h3 mix={s.createTitle}>Add environment</h3>
+                <form mix={s.form} method="post" action={routes.settings.href()}>
+                  <input type="hidden" name="intent" value="create-env" />
+                  <div mix={s.field}>
+                    <span mix={s.lbl}>Name</span>
+                    <input mix={s.input} type="text" name="name" placeholder="Production" required />
+                  </div>
+                  <div mix={s.field}>
+                    <span mix={s.lbl}>Host</span>
+                    <input mix={s.input} type="text" name="host" placeholder="db.example.com" required />
+                  </div>
+                  <div mix={s.field}>
+                    <span mix={s.lbl}>Port</span>
+                    <input mix={s.input} type="text" name="port" placeholder="5432" />
+                  </div>
+                  <div mix={s.field}>
+                    <span mix={s.lbl}>User</span>
+                    <input mix={s.input} type="text" name="user" required />
+                  </div>
+                  <div mix={s.field}>
+                    <span mix={s.lbl}>Password</span>
+                    <input mix={s.input} type="password" name="password" required />
+                  </div>
+                  <div mix={s.field}>
+                    <span mix={s.lbl}>Database</span>
+                    <input mix={s.input} type="text" name="dbName" placeholder="cluster" required />
+                  </div>
+                  <div mix={s.field}>
+                    <span mix={s.lbl}>SSL</span>
+                    <select mix={s.small} name="ssl">
+                      <option value="false">No</option>
+                      <option value="true">Yes</option>
+                    </select>
+                  </div>
+                  <div mix={s.field}>
+                    <label mix={s.lbl}>
+                      <input type="checkbox" name="isDefault" value="true" />
+                      Set as default
+                    </label>
+                  </div>
+                  <button mix={[a.btn, a.btnPrimary]} type="submit">
+                    Add environment
+                  </button>
+                </form>
+              </section>
+            )}
 
             {isAdmin && (
               <section mix={s.card}>
