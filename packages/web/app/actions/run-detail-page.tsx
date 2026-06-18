@@ -4,16 +4,15 @@ import { findCauseLeaf } from "@template/domain/workflow/decode/exit"
 import { getOutputCause } from "@template/domain/workflow/decode/workflow"
 import type { Schema } from "effect"
 import { css, type Handle, type RemixNode } from "remix/ui"
-import { RMX_01 } from "remix/ui/theme"
+import { AppLayout } from "../components/layout/AppLayout.js"
 import { routes } from "../routes.js"
-import { FONTS_HREF, STATUS_COLOR, tk } from "../ui/tokens.js"
+import { STATUS_COLOR, tk } from "../ui/tokens.js"
 import { fmtDate, fmtDuration } from "../utils/runs.js"
 
 export type RunDetailEncoded = Schema.Schema.Encoded<typeof RunDetail>
 type ChildEncoded = RunDetailEncoded["children"][number]
 
 const d = {
-  body: css({ margin: 0, fontFamily: tk.fontSans, color: tk.fg, background: tk.bg }),
   container: css({ maxWidth: "48rem", margin: "0 auto", padding: "2.5rem 2rem" }),
   nav: css({ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }),
   back: css({
@@ -63,15 +62,15 @@ const d = {
     fontSize: ".9rem",
     border: `1px solid ${tk.border}`
   }),
-  bannerError: css({ borderColor: "#dc262655", background: "#dc26260f" }),
-  bannerWarn: css({ borderColor: "#c2410c55", background: "#c2410c0f" }),
-  ok: css({ color: "#15803d", margin: 0, fontWeight: 500 }),
+  bannerError: css({ borderColor: tk.destructiveSoft, background: tk.destructiveSoft }),
+  bannerWarn: css({ borderColor: tk.warningSoft, background: tk.warningSoft }),
+  ok: css({ color: tk.success, margin: 0, fontWeight: 500 }),
   details: css({ marginTop: ".6rem" }),
   summary: css({ cursor: "pointer", fontSize: ".8rem", color: tk.mutedFg }),
   pre: css({
     maxHeight: "24rem",
     overflow: "auto",
-    background: tk.card,
+    background: tk.bg,
     border: `1px solid ${tk.border}`,
     padding: ".85rem",
     borderRadius: tk.radiusSm,
@@ -105,7 +104,7 @@ const d = {
 }
 
 const badge = (status: RunStatus) => {
-  const c = STATUS_COLOR[status] ?? "#71717a"
+  const c = STATUS_COLOR[status] ?? "#6b7280"
   return css({
     display: "inline-block",
     padding: ".15rem .6rem",
@@ -134,10 +133,17 @@ const fmtDelta = (ms: number): string => {
   return `${sign}${(a / 60_000).toFixed(1)}m`
 }
 
-/** Server-rendered detail page styled with Remix `css()` + RMX_01. Collapsibles use native <details>. */
-export function RunDetailPage(handle: Handle<{ run: RunDetailEncoded }>) {
+/** Server-rendered detail page using the AppLayout shell. */
+export interface RunDetailPageProps {
+  run: RunDetailEncoded
+  environments?: ReadonlyArray<{ id: string; name: string; isDefault: boolean }>
+  activeEnvId?: string | null
+  currentPath?: string
+}
+
+export function RunDetailPage(handle: Handle<RunDetailPageProps>) {
   return () => {
-    const { run } = handle.props
+    const { run, environments, activeEnvId, currentPath } = handle.props
     const parentTime = run.startedAt === null ? null : new Date(run.startedAt).getTime()
     const children = [...run.children].sort((a, b) => {
       const at = a.startedAt === null ? Infinity : new Date(a.startedAt).getTime()
@@ -146,141 +152,139 @@ export function RunDetailPage(handle: Handle<{ run: RunDetailEncoded }>) {
     })
 
     return (
-      <html lang="en">
-        <head>
-          <meta charSet="UTF-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <title>{`Run ${run.workflowName}`}</title>
-          <link rel="preconnect" href="https://fonts.googleapis.com" />
-          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-          <link rel="stylesheet" href={FONTS_HREF} />
-          <RMX_01 />
-        </head>
-        <body mix={d.body}>
-          <main mix={d.container}>
-            <nav mix={d.nav}>
-              <a mix={d.back} href={routes.home.href()}>← Back to runs</a>
-              <a mix={d.back} href={routes.settings.href()}>⚙ Settings</a>
-            </nav>
+      <AppLayout
+        title={`Run ${run.workflowName} — Workflow Viz`}
+        activeNav="executions"
+        environments={environments ?? []}
+        activeEnvId={activeEnvId ?? null}
+        currentPath={currentPath ?? "/"}
+      >
+        <main mix={d.container}>
+          <nav mix={d.nav}>
+            <a mix={d.back} href={routes.home.href()}>← Back to runs</a>
+            <a mix={d.back} href={routes.settings.href()}>⚙ Settings</a>
+          </nav>
 
-            <header mix={d.card}>
-              <h1 mix={d.h1}>{run.workflowName}</h1>
-              <div mix={d.mono}>{run.runId}</div>
-              <p>
-                <span mix={badge(run.status)}>{run.status}</span>
-              </p>
-              <dl mix={d.meta}>
-                <dt>Message ID</dt>
-                <dd>{run.id}</dd>
-                <dt>Trace ID</dt>
-                <dd>{run.traceId ?? "—"}</dd>
-                <dt>Shard</dt>
-                <dd>{run.shardId}</dd>
-                <dt>Started (UTC)</dt>
-                <dd>{fmtDate(run.startedAt)}</dd>
-                <dt>Duration</dt>
-                <dd>{fmtDuration(run.durationMs)}</dd>
-              </dl>
-            </header>
+          <header mix={d.card}>
+            <h1 mix={d.h1}>{run.workflowName}</h1>
+            <div mix={d.mono}>{run.runId}</div>
+            <p>
+              <span mix={badge(run.status)}>{run.status}</span>
+            </p>
+            <dl mix={d.meta}>
+              <dt>Message ID</dt>
+              <dd>{run.id}</dd>
+              <dt>Trace ID</dt>
+              <dd>{run.traceId ?? "—"}</dd>
+              <dt>Shard</dt>
+              <dd>{run.shardId}</dd>
+              <dt>Started (UTC)</dt>
+              <dd>{fmtDate(run.startedAt)}</dd>
+              <dt>Duration</dt>
+              <dd>{fmtDuration(run.durationMs)}</dd>
+            </dl>
+          </header>
 
-            <h2 mix={d.h2}>Output</h2>
-            <OutputView status={run.status} output={run.output} />
+          {/* Error / output / exit value */}
+          <OutputSection
+            status={run.status}
+            output={run.output}
+          />
 
-            <h2 mix={d.h2}>Input</h2>
-            {run.input === null
-              ? <p mix={d.muted}>—</p>
-              : (
-                <details mix={d.details} open>
-                  <summary mix={d.summary}>Show input</summary>
-                  <pre mix={d.pre}>{json(run.input)}</pre>
-                </details>
-              )}
-
-            <h2 mix={d.h2}>Children ({run.children.length})</h2>
-            {children.length === 0
-              ? <p mix={d.muted}>No child runs.</p>
-              : (
-                <table mix={d.table}>
-                  <thead>
-                    <tr>
-                      <th></th>
-                      <th>Workflow</th>
-                      <th>Run ID</th>
-                      <th mix={d.tnum}>Δ</th>
-                      <th>Shard</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {children.map((child) => <ChildRow child={child} parentTime={parentTime} />)}
-                  </tbody>
-                </table>
-              )}
-          </main>
-          <script type="module" src="/assets/app/assets/entry.ts"></script>
-        </body>
-      </html>
+          {/* Children */}
+          {children.length > 0 && (
+            <section>
+              <h2 mix={d.h2}>Children ({children.length})</h2>
+              <table mix={d.table}>
+                <thead>
+                  <tr>
+                    <th>Workflow</th>
+                    <th>Run ID</th>
+                    <th>Status</th>
+                    <th mix={d.tnum}>Duration</th>
+                    <th mix={d.tnum}>Δ parent</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {children.map((ch) => {
+                    const chStart = ch.startedAt === null ? null : new Date(ch.startedAt).getTime()
+                    const delta = parentTime !== null && chStart !== null ? chStart - parentTime : null
+                    return (
+                      <tr key={ch.runId}>
+                        <td>
+                          <a mix={d.link} href={routes.runShow.href({ messageId: ch.id })}>
+                            {ch.workflowName}
+                          </a>
+                        </td>
+                        <td mix={d.mono}>{ch.runId}</td>
+                        <td><span mix={badge(ch.status)}>{ch.status}</span></td>
+                        <td mix={d.tnum}>{fmtDuration(ch.durationMs)}</td>
+                        <td mix={d.tnum}>{delta !== null ? fmtDelta(delta) : "—"}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </section>
+          )}
+        </main>
+      </AppLayout>
     )
   }
 }
 
-function ChildRow(handle: Handle<{ child: ChildEncoded; parentTime: number | null }>) {
-  return () => {
-    const { child, parentTime } = handle.props
-    const childTime = child.startedAt === null ? null : new Date(child.startedAt).getTime()
-    const delta = parentTime !== null && childTime !== null ? childTime - parentTime : null
-    return (
-      <tr>
-        <td>
-          <span mix={d.dot} style={{ background: STATUS_COLOR[child.status] }} title={child.status} />
-        </td>
-        <td>{child.workflowName}</td>
-        <td>
-          <a mix={d.link} href={routes.runShow.href({ messageId: child.id })}>{child.runId}</a>
-        </td>
-        <td mix={d.tnum}>{delta === null ? "—" : fmtDelta(delta)}</td>
-        <td>{child.shardId}</td>
-      </tr>
-    )
-  }
-}
+// ---------------------------------------------------------------------------
+// Output section — shows the run's output/error based on status
+// ---------------------------------------------------------------------------
 
-function OutputView(handle: Handle<{ status: RunStatus; output: unknown }>) {
+function OutputSection(handle: Handle<{ status: RunStatus; output: unknown }>) {
   return (): RemixNode => {
     const { output, status } = handle.props
+
     switch (status) {
       case "success":
-        return (
-          <div>
-            <p mix={d.ok}>✓ Completed successfully</p>
-            <Raw label="Show raw exit" value={output} />
-          </div>
-        )
+      case "crashed":
       case "failed_app": {
         const cause = getOutputCause(output)
-        const fail = cause === null ? null : findCauseLeaf(cause, "Fail")
-        const message = fail === null ? null : extractMessage(fail["error"])
+        const isError = status !== "success"
+
+        if (cause === null) return null
+
+        // Show the first "Fail" leaf for failed_app, "Die" leaf for crashed.
+        const targetTag = status === "failed_app" ? "Fail" : "Die"
+        const leaf = findCauseLeaf(cause, targetTag)
+
+        const msg = leaf === null ? null : extractMessage(leaf)
+
+        if (status === "success") {
+          return (
+            <div>
+              <div mix={d.ok}>{extractMessage(cause) ?? "OK"}</div>
+              <Raw label="Show raw output" value={cause} />
+            </div>
+          )
+        }
+
+        // crashed / failed_app
+        const defect = leaf === null ? null : extractDefect(leaf["defect"])
         return (
           <div>
-            <div mix={[d.banner, d.bannerError]}>
-              <strong>Application error</strong>
-              {message !== null && <pre mix={d.pre}>{message}</pre>}
-            </div>
-            <Raw label="Show raw cause" value={cause ?? output} />
-          </div>
-        )
-      }
-      case "crashed": {
-        const cause = getOutputCause(output)
-        const die = cause === null ? null : findCauseLeaf(cause, "Die")
-        const defect = extractDefect(die === null ? null : die["defect"])
-        return (
-          <div>
-            <div mix={[d.banner, d.bannerError]}>
-              <strong>{defect.name ?? "Defect"}</strong>
-              {defect.message !== null && <pre mix={d.pre}>{defect.message}</pre>}
-            </div>
-            {defect.stack !== null && <Raw label="Show stack" value={defect.stack} preformatted />}
-            <Raw label="Show raw cause" value={cause ?? output} />
+            {msg !== null && (
+              <div mix={[d.banner, d.bannerError]}>
+                <strong>{status === "crashed" ? "Defect" : "Error"}: </strong>
+                {msg}
+              </div>
+            )}
+            {defect !== null && (
+              <>
+                <div>
+                  <strong>{defect.name ?? targetTag}</strong>
+                  {defect.message !== null && <pre mix={d.pre}>{defect.message}</pre>}
+                </div>
+                {defect.stack !== null && <Raw label="Show stack" value={defect.stack} preformatted />}
+              </>
+            )}
+            <Raw label="Show raw cause" value={cause} />
           </div>
         )
       }

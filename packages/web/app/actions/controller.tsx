@@ -121,25 +121,15 @@ const cleanFilterUrl = (url: URL, basePath: string): string | null => {
 // ---------------------------------------------------------------------------
 
 // Shared loader: parse the URL and run ListRunsQuery via the Effect runtime.
-// When an envId is present in the session, delegates to the env-aware version.
-const loadRuns = (url: URL, session?: { get: (key: string) => any }) => {
+// Requires an envId — no fallback to default env vars.
+const loadRuns = (url: URL, envId: string | null) => {
+  if (!envId) return Promise.resolve({ items: [], nextCursor: null })
   const limitRaw = Number(url.searchParams.get("limit"))
   const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 200) : 50
   const before = url.searchParams.get("before")
-  const envId = session?.get?.("envId") as string | undefined
   const filter = parseFilter(url)
   const page = new PageRequest({ limit, before })
-
-  if (envId) {
-    return loadRunsWithEnv(envId, filter, page)
-  }
-
-  return runtime.runPromise(
-    Effect.gen(function*() {
-      const listRuns = yield* ListRunsQuery
-      return yield* listRuns.execute(filter, page)
-    })
-  )
+  return loadRunsWithEnv(envId, filter, page)
 }
 
 // Chart loader: page through (PageRequest caps a single page at 200) within the
@@ -147,32 +137,9 @@ const loadRuns = (url: URL, session?: { get: (key: string) => any }) => {
 // at once. A non-null trailing cursor means the range still has more (truncated).
 const CHART_MAX = 1000
 const CHART_PAGE = 200
-const loadChartRuns = (url: URL, session?: { get: (key: string) => any }) => {
-  const envId = session?.get?.("envId") as string | undefined
-
-  if (envId) {
-    return loadChartRunsWithEnv(envId, url)
-  }
-
-  return runtime.runPromise(
-    Effect.gen(function*() {
-      const listRuns = yield* ListRunsQuery
-      const filter = parseFilter(url)
-      const items: Array<RunSummary> = []
-      let before: string | null = null
-      while (items.length < CHART_MAX) {
-        const limit = Math.min(CHART_PAGE, CHART_MAX - items.length)
-        const page: Schema.Schema.Type<typeof PaginatedRunSummary> = yield* listRuns.execute(
-          filter,
-          new PageRequest({ limit, before })
-        )
-        for (const item of page.items) items.push(item)
-        before = page.nextCursor
-        if (before === null || page.items.length === 0) break
-      }
-      return { items, nextCursor: before }
-    })
-  )
+const loadChartRuns = (url: URL, envId: string | null) => {
+  if (!envId) return Promise.resolve({ items: [], nextCursor: null })
+  return loadChartRunsWithEnv(envId, url)
 }
 
 const countUsers = () =>
@@ -453,15 +420,16 @@ export default createController(routes, {
       async handler({ render, session, url }) {
         const clean = cleanFilterUrl(url, routes.home.href())
         if (clean !== null) return redirect(clean, 303)
-        const page = await loadRuns(url, session)
-        const { items, nextCursor } = encodeRuns(page)
-        const filters = toFilters(parseFilter(url))
         const envId = session?.get?.("envId") as string | undefined
         const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
           id: e.id,
           name: e.name,
           isDefault: e.isDefault
         }))
+        const page = await loadRuns(url, envId ?? null)
+        const { items, nextCursor } = encodeRuns(page)
+        const filters = toFilters(parseFilter(url))
+        const currentPath = url.pathname + url.search
         return render(
           <RunsPage
             runs={items}
@@ -470,6 +438,7 @@ export default createController(routes, {
             query={buildFilterQuery(filters)}
             environments={environments}
             activeEnvId={envId ?? null}
+            currentPath={currentPath}
           />
         )
       }
@@ -481,7 +450,13 @@ export default createController(routes, {
       async handler({ render, session, url }) {
         const clean = cleanFilterUrl(url, routes.chart.href())
         if (clean !== null) return redirect(clean, 303)
-        const page = await loadChartRuns(url, session)
+        const envId = session?.get?.("envId") as string | undefined
+        const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
+          id: e.id,
+          name: e.name,
+          isDefault: e.isDefault
+        }))
+        const page = await loadChartRuns(url, envId ?? null)
         const { items, nextCursor } = encodeRuns(page)
         const filter = parseFilter(url)
         const filters = toFilters(filter)
@@ -501,12 +476,7 @@ export default createController(routes, {
           : times.length > 0
           ? Math.max(...times) + 1
           : nowMs
-        const envId = session?.get?.("envId") as string | undefined
-        const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
-          id: e.id,
-          name: e.name,
-          isDefault: e.isDefault
-        }))
+        const currentPath = url.pathname + url.search
         return render(
           <ChartPage
             runs={items}
@@ -517,6 +487,7 @@ export default createController(routes, {
             truncated={nextCursor !== null}
             environments={environments}
             activeEnvId={envId ?? null}
+            currentPath={currentPath}
           />
         )
       }
@@ -636,6 +607,7 @@ export default createController(routes, {
           })
         )
         const adminCount = users.filter((u) => u.role === "admin").length
+        const envId = context.session.get("envId") as string | undefined
         const environments = isAdmin
           ? await runWithEnvs((r) => r.list)
           : []
@@ -669,6 +641,8 @@ export default createController(routes, {
               ssl: e.ssl,
               isDefault: e.isDefault
             }))}
+            activeEnvId={envId ?? null}
+            tab={context.url.searchParams.get("tab") || "account"}
             error={error ?? null}
             success={success ?? null}
           />
@@ -680,7 +654,8 @@ export default createController(routes, {
     runs: {
       middleware: protect,
       async handler({ session, url }) {
-        const page = await loadRuns(url, session)
+        const envId = session?.get?.("envId") as string | undefined
+        const page = await loadRuns(url, envId ?? null)
         return Response.json(encodeRuns(page))
       }
     },
@@ -688,26 +663,31 @@ export default createController(routes, {
     // GET /runs/:messageId — server-rendered run detail page.
     runShow: {
       middleware: protect,
-      async handler({ params, render, session }) {
+      async handler({ params, render, session, url }) {
         const messageId = decodeMessageId(params.messageId)
         const envId = session?.get?.("envId") as string | undefined
 
-        const result = envId
-          ? await loadRunDetailWithEnv(envId, messageId)
-          : await runtime.runPromise(
-            Effect.gen(function*() {
-              const getRun = yield* GetRunQuery
-              return yield* getRun.execute(messageId)
-            }).pipe(
-              Effect.map((run) => ({ _tag: "ok" as const, run })),
-              Effect.catchTag("RunNotFound", () => Effect.succeed({ _tag: "notFound" as const }))
-            )
-          )
+        if (!envId) return new Response("No environment selected", { status: 404 })
+
+        const result = await loadRunDetailWithEnv(envId, messageId)
+        const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
+          id: e.id,
+          name: e.name,
+          isDefault: e.isDefault
+        }))
+        const currentPath = url.pathname + url.search
 
         if (result._tag === "notFound") {
           return new Response("Run not found", { status: 404 })
         }
-        return render(<RunDetailPage run={encodeRunDetail(result.run)} />)
+        return render(
+          <RunDetailPage
+            run={encodeRunDetail(result.run)}
+            environments={environments}
+            activeEnvId={envId ?? null}
+            currentPath={currentPath}
+          />
+        )
       }
     },
 
@@ -718,20 +698,9 @@ export default createController(routes, {
         const messageId = decodeMessageId(params.messageId)
         const envId = session?.get?.("envId") as string | undefined
 
-        const result = envId
-          ? await loadChildrenWithEnv(envId, messageId)
-          : await runtime.runPromise(
-            Effect.gen(function*() {
-              const getRun = yield* GetRunQuery
-              const getChildRuns = yield* GetChildRunsQuery
-              const run = yield* getRun.execute(messageId)
-              if (run.traceId === null) return { _tag: "ok" as const, children: [] as ReadonlyArray<RunSummary> }
-              const children = yield* getChildRuns.execute(run.traceId, messageId)
-              return { _tag: "ok" as const, children }
-            }).pipe(
-              Effect.catchTag("RunNotFound", () => Effect.succeed({ _tag: "notFound" as const }))
-            )
-          )
+        if (!envId) return Response.json({ items: [], nextCursor: null })
+
+        const result = await loadChildrenWithEnv(envId, messageId)
 
         if (result._tag === "notFound") {
           return new Response("Run not found", { status: 404 })
