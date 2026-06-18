@@ -29,7 +29,7 @@
     "@effect/sql": "latest",
     "@effect/sql-sqlite-node": "latest",
     "@template/domain": "workspace:^",
-    "effect": "latest",
+    "effect": "3.21.3",
     "oslo": "^1.2.1"
   },
   "effect": {

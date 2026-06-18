@@ -9,6 +9,32 @@ pgTypes.setTypeParser(1082, identity) // DATE
 pgTypes.setTypeParser(1114, identity) // TIMESTAMP
 pgTypes.setTypeParser(1184, identity)
 
+// ---- NEW: Factory for building a PgClient layer from static config ----
+// Useful when the connection details come from a dynamic source (e.g. a
+// user-managed environment record) rather than environment variables.
+export const makePgLayer = (params: {
+  readonly host: string
+  readonly port: string
+  readonly user: string
+  readonly password: string
+  readonly dbName: string
+  readonly ssl: boolean
+}) =>
+  Layer.unwrapEffect(
+    Effect.sync(() => {
+      const url = `postgres://${params.user}:${params.password}@${params.host}:${params.port}/${params.dbName}`
+      return PgClient.layer({
+        url: Redacted.make(url),
+        ssl: params.ssl,
+        maxConnections: 5,
+        transformQueryNames: String.camelToSnake,
+        transformResultNames: String.snakeToCamel,
+        types: pgTypes
+      })
+    })
+  ).pipe(Layer.provide(NodeContext.layer))
+
+// ---- KEEP existing PgLive as-is (reads from env vars) ----
 export const PgLive = Layer.unwrapEffect(
   Effect.gen(function*() {
     const database = yield* Config.string("DB_HOST")

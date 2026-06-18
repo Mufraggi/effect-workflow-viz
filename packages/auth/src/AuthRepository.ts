@@ -83,6 +83,25 @@ export class AuthRepository extends Effect.Service<AuthRepository>()("AuthReposi
     `
     yield* sql`CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at)`
 
+    // Environments table — shared by AuthRepository and EnvironmentRepository.
+    // Created here so the environments package does not need to duplicate the
+    // DDL and so the table always exists even when EnvironmentRepository is
+    // not invoked during a session (e.g. first-run setup).
+    yield* sql`
+      CREATE TABLE IF NOT EXISTS environments (
+        id TEXT PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL,
+        host TEXT NOT NULL,
+        port TEXT NOT NULL DEFAULT '5432',
+        user TEXT NOT NULL,
+        password TEXT NOT NULL,
+        db_name TEXT NOT NULL,
+        ssl INTEGER NOT NULL DEFAULT 0,
+        is_default INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+      )
+    `
+
     const countUsers = Effect.gen(function*() {
       const rows = yield* sql<{ readonly count: number }>`SELECT COUNT(*) AS count FROM users`
       return Number(rows[0]?.count ?? 0)

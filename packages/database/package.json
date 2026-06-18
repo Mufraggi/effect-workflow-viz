@@ -29,7 +29,7 @@
     "@effect/sql": "latest",
     "@effect/sql-pg": "latest",
     "@template/domain": "workspace:^",
-    "effect": "latest",
+    "effect": "3.21.3",
     "pg-types": "^4.0.2"
   },
   "effect": {

@@ -195,7 +195,7 @@ describe("WorkflowReader (integration)", () => {
     expect(detail.id).toBe(PARENT_ID)
     expect(detail.status).toBe("success")
     expect(detail.input).toEqual({ input: 1 })
-    expect((detail.output as any)._tag).toBe("Success")
+    expect((detail.output as { readonly _tag: string })._tag).toBe("Success")
     const childIds = detail.children.map((c) => c.id).sort()
     expect(childIds).toEqual([CHILD_A_ID, CHILD_B_ID].sort())
   })

@@ -1,5 +1,5 @@
 import { css } from "remix/ui"
-import { tk } from "../ui/tokens.js"
+import { tk } from "./tokens.js"
 
 /** Shared styling for the centered auth cards (login + setup). */
 export const authStyles = {

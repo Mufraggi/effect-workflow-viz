@@ -24,5 +24,6 @@ const server = http.createServer(
 )
 
 server.listen(PORT, () => {
+  // eslint-disable-next-line no-console -- intentional server startup log
   console.log(`web server listening at http://localhost:${PORT}`)
 })

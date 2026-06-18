@@ -49,7 +49,10 @@
       "@template/auth/test/*": ["./packages/auth/test/*.js"],
       "@template/api": ["./packages/api/src/index.js"],
       "@template/api/*": ["./packages/api/src/*.js"],
-      "@template/api/test/*": ["./packages/api/test/*.js"]
+      "@template/api/test/*": ["./packages/api/test/*.js"],
+      "@template/environments": ["./packages/environments/src/index.js"],
+      "@template/environments/*": ["./packages/environments/src/*.js"],
+      "@template/environments/test/*": ["./packages/environments/test/*.js"]
     }
   }
 }

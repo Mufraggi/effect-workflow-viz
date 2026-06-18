@@ -1,13 +1,13 @@
 {
-  "name": "@template/domain",
+  "name": "@template/environments",
   "version": "0.0.0",
   "type": "module",
   "license": "MIT",
-  "description": "Domain types and schemas",
+  "description": "Environment connection config repository (SQLite)",
   "repository": {
     "type": "git",
     "url": "<PLACEHOLDER>",
-    "directory": "packages/domain"
+    "directory": "packages/environments"
   },
   "publishConfig": {
     "access": "public",
@@ -24,7 +24,19 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "effect": "3.21.3"
+    "@effect/platform": "latest",
+    "@effect/platform-node": "latest",
+    "@effect/sql": "latest",
+    "@effect/sql-pg": "latest",
+    "@effect/sql-sqlite-node": "latest",
+    "@template/auth": "workspace:^",
+    "@template/database": "workspace:^",
+    "effect": "3.21.3",
+    "pg-types": "^4.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.0"
   },
   "effect": {
     "generateExports": {
