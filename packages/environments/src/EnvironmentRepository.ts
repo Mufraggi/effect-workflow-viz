@@ -205,7 +205,7 @@ export class EnvironmentRepository extends Effect.Service<EnvironmentRepository>
 
           // Build a dynamic UPDATE – only the supplied fields are touched.
           const sets: Array<string> = []
-          const params: Array<any> = []
+          const params: Array<string | number> = []
 
           if (input.name !== undefined) {
             sets.push("name = ?")

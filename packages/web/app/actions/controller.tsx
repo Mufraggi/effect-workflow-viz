@@ -1,6 +1,3 @@
-import { GetChildRunsQuery } from "@template/api/run/query/GetChildRunsQuery"
-import { GetRunQuery } from "@template/api/run/query/GetRunQuery"
-import { ListRunsQuery } from "@template/api/run/query/ListRunsQuery"
 import { AuthRepository } from "@template/auth/AuthRepository"
 import { hashPassword } from "@template/auth/password"
 import { makeWorkflowReader } from "@template/database/repository/workflowReader/WorkflowReader"
@@ -168,11 +165,11 @@ const loadRunsWithEnv = (
   envId: string,
   filter: ListRunsFilter,
   page: PageRequest
-): Promise<any> =>
+) =>
   runtime.runPromise(
     Effect.gen(function*() {
       const db = yield* DbManager
-      const pg: any = yield* db.getClient(envId)
+      const pg = yield* db.getClient(envId)
       const reader = makeWorkflowReader(pg)
       return yield* reader.listRuns(filter, page)
     })
@@ -181,11 +178,11 @@ const loadRunsWithEnv = (
 const loadChartRunsWithEnv = (
   envId: string,
   url: URL
-): Promise<any> =>
+) =>
   runtime.runPromise(
     Effect.gen(function*() {
       const db = yield* DbManager
-      const pg: any = yield* db.getClient(envId)
+      const pg = yield* db.getClient(envId)
       const reader = makeWorkflowReader(pg)
       const filter = parseFilter(url)
       const items: Array<RunSummary> = []
@@ -207,27 +204,25 @@ const loadChartRunsWithEnv = (
 const loadRunDetailWithEnv = (
   envId: string,
   messageId: MessageId
-): Promise<any> =>
-  runtime.runPromise(
+) =>
+  runtime.runPromiseExit(
     Effect.gen(function*() {
       const db = yield* DbManager
-      const pg: any = yield* db.getClient(envId)
+      const pg = yield* db.getClient(envId)
       const reader = makeWorkflowReader(pg)
       const run = yield* reader.getRun(messageId)
       return { _tag: "ok" as const, run }
-    }).pipe(
-      (Effect.catchTag as any)("RunNotFound", () => Effect.succeed({ _tag: "notFound" as const }))
-    )
+    })
   )
 
 const loadChildrenWithEnv = (
   envId: string,
   messageId: MessageId
-): Promise<any> =>
-  runtime.runPromise(
+) =>
+  runtime.runPromiseExit(
     Effect.gen(function*() {
       const db = yield* DbManager
-      const pg: any = yield* db.getClient(envId)
+      const pg = yield* db.getClient(envId)
       const reader = makeWorkflowReader(pg)
       const run = yield* reader.getRun(messageId)
       if (run.traceId === null) {
@@ -235,9 +230,7 @@ const loadChildrenWithEnv = (
       }
       const children = yield* reader.getChildRuns(run.traceId, messageId)
       return { _tag: "ok" as const, children }
-    }).pipe(
-      (Effect.catchTag as any)("RunNotFound", () => Effect.succeed({ _tag: "notFound" as const }))
-    )
+    })
   )
 
 // Brute-force lockout// Brute-force lockout: block an IP after this many failures within the window.
@@ -677,12 +670,12 @@ export default createController(routes, {
         }))
         const currentPath = url.pathname + url.search
 
-        if (result._tag === "notFound") {
+        if (result._tag === "Failure") {
           return new Response("Run not found", { status: 404 })
         }
         return render(
           <RunDetailPage
-            run={encodeRunDetail(result.run)}
+            run={encodeRunDetail(result.value.run)}
             environments={environments}
             activeEnvId={envId ?? null}
             currentPath={currentPath}
@@ -702,10 +695,10 @@ export default createController(routes, {
 
         const result = await loadChildrenWithEnv(envId, messageId)
 
-        if (result._tag === "notFound") {
+        if (result._tag === "Failure") {
           return new Response("Run not found", { status: 404 })
         }
-        return Response.json(encodeChildren(result.children))
+        return Response.json(encodeChildren(result.value.children))
       }
     },
 

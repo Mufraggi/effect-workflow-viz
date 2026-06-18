@@ -1,7 +1,13 @@
 import { PgClient } from "@effect/sql-pg"
 import { makePgLayer } from "@template/database/PgLive"
-import { Effect, ManagedRuntime } from "effect"
+import { Effect, type Layer, ManagedRuntime } from "effect"
 import { EnvironmentRepository } from "./EnvironmentRepository.js"
+
+type PgLayer = ReturnType<typeof makePgLayer>
+type PgRuntime = ManagedRuntime.ManagedRuntime<
+  Layer.Layer.Success<PgLayer>,
+  Layer.Layer.Error<PgLayer>
+>
 
 /**
  * DbManager resolves environment ids to live PgClient pools.
@@ -19,7 +25,7 @@ export class DbManager extends Effect.Service<DbManager>()("DbManager", {
     const envRepo = yield* EnvironmentRepository
 
     // Cache: map<envId, ManagedRuntime> so pools stay alive.
-    const runtimes = new Map<string, ManagedRuntime.ManagedRuntime<any, any>>()
+    const runtimes = new Map<string, PgRuntime>()
 
     const getClient = yield* Effect.cachedFunction((envId: string): Effect.Effect<PgClient.PgClient, Error> =>
       Effect.gen(function*() {
@@ -32,9 +38,7 @@ export class DbManager extends Effect.Service<DbManager>()("DbManager", {
         // Check cache first
         const existing = runtimes.get(envId)
         if (existing) {
-          return yield* Effect.promise(() =>
-            existing.runPromise(PgClient.PgClient as any) as Promise<PgClient.PgClient>
-          )
+          return yield* Effect.promise(() => existing.runPromise(PgClient.PgClient))
         }
 
         // Create a new pool via makePgLayer (same approach as PgLive.ts,
@@ -47,11 +51,11 @@ export class DbManager extends Effect.Service<DbManager>()("DbManager", {
             password: env.password,
             dbName: env.dbName,
             ssl: env.ssl
-          }) as any
+          })
         )
         runtimes.set(envId, rt)
 
-        return yield* Effect.promise(() => rt.runPromise(PgClient.PgClient as any) as Promise<PgClient.PgClient>)
+        return yield* Effect.promise(() => rt.runPromise(PgClient.PgClient))
       })
     )
 

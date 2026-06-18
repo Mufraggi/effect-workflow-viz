@@ -34,4 +34,4 @@ const AppLayer = Layer.mergeAll(
  * A long-lived Effect runtime. Built once at module load and reused for every
  * request via `runtime.runPromise(effect)` inside controllers.
  */
-export const runtime = ManagedRuntime.make(AppLayer as any)
+export const runtime = ManagedRuntime.make(AppLayer)
