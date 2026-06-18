@@ -42,8 +42,18 @@ export * as RunSummary from "./run/RunSummary.js"
 export * as ShardId from "./run/ShardId.js"
 
 /**
- * Decode the creation timestamp packed into an Effect Cluster Snowflake id —
- * the basis for a run's real `startedAt` and approximate duration.
+ * Effect Cluster message IDs (the `cluster_messages.id` / `last_reply_id`
+ * columns) are Snowflakes: a 64-bit integer that packs the creation timestamp
+ * into its high bits. Layout (see `@effect/cluster` `Snowflake`):
+ *
+ *   bits 22..63  millisecond timestamp, offset by `SNOWFLAKE_EPOCH`
+ *   bits 12..21  machine id
+ *   bits  0..11  per-millisecond sequence
+ *
+ * So a run's wall-clock creation time is recoverable from its id alone — which
+ * is what lets us derive a real `startedAt` (from the message id) and an
+ * approximate duration (reply id timestamp − message id timestamp) without any
+ * extra timing column.
  */
 export * as Snowflake from "./run/Snowflake.js"
 
