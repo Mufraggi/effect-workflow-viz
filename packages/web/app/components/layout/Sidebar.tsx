@@ -139,7 +139,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: ReadonlyArray<NavItem> = [
-  { id: "overview", label: "Overview", icon: IconOverview, section: "overview" },
+  { id: "overview", label: "Overview", icon: IconOverview, section: "overview", href: routes.overview.href() },
   { id: "nodes", label: "Nodes", icon: IconNodes, section: "cluster" },
   { id: "entities", label: "Entities", icon: IconEntities, section: "cluster" },
   { id: "shards", label: "Shards", icon: IconShards, section: "cluster" },

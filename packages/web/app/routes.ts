@@ -31,5 +31,9 @@ export const routes = route({
   // API endpoint for environment CRUD.
   environments: get("/environments"),
   // API endpoint — switch active environment (stored in session).
-  selectEnv: get("/select-env")
+  selectEnv: get("/select-env"),
+  // Cluster Overview page with live SSE streaming.
+  overview: "/overview",
+  // SSE endpoint for live overview snapshots.
+  overviewStream: get("/overview/stream")
 })
