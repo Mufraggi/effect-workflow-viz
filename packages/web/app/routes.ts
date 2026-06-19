@@ -35,5 +35,7 @@ export const routes = route({
   // Cluster Overview page with live SSE streaming.
   overview: "/overview",
   // SSE endpoint for live overview snapshots.
-  overviewStream: get("/overview/stream")
+  overviewStream: get("/overview/stream"),
+  // Dedicated Shards page — dense heatmap + nodes.
+  shards: "/shards"
 })

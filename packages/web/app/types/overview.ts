@@ -1,5 +1,6 @@
 // ---------------------------------------------------------------------------
-// Types for the Overview page — mirrors the API shape.
+// Types for the Overview page — mirrors the shape returned by the API.
+// Each field maps to a real SQL column; nothing is invented.
 // ---------------------------------------------------------------------------
 
 export type ClusterStats = {
@@ -31,20 +32,34 @@ export type ActivityPoint = {
   failed: number
 }
 
-export type NodeStatus = "healthy" | "degraded" | "offline"
+export type NodeStatus = "healthy" | "offline"
 
 export type NodeInfo = {
+  /** runner address (e.g. "0.0.0.0:34431") */
   id: string
+  /** display address (same as id) */
   addr: string
+  /** computed from healthy + lastHeartbeat within lock expiry */
   status: NodeStatus
-  entities: number
-  workflows: number
-  cpuPct: number
+  /** raw groups array from runner JSON (e.g. "[default]") */
+  groups: string
+  /** healthy flag from cluster_runners */
+  healthy: boolean
+  /** last heartbeat timestamp string from cluster_runners */
+  lastHeartbeat: string | null
+  /** number of shards assigned to this runner via cluster_locks */
+  assignedShards: number
 }
 
 export type ShardInfo = {
-  id: number
+  /** shard id as "group:number" (e.g. "default:73") */
+  id: string
+  /** numeric part of the shard id */
+  num: number
+  /** assigned = present in cluster_locks with non-expired acquired_at */
   status: "assigned" | "unassigned"
+  /** number of distinct entities seen on this shard (derived from cluster_messages), null if never messaged */
+  entities: number | null
 }
 
 export type OverviewSnapshot = {
@@ -66,15 +81,51 @@ export interface OverviewReaderResult {
   entityTypes: ReadonlyArray<{ entityType: string }>
   recentCount: number
   now: Date
+
+  // Cluster real data
+  activeRunners: ReadonlyArray<{
+    address: string
+    runner: string
+    healthy: boolean
+    lastHeartbeat: string
+  }>
+  allRunners: ReadonlyArray<{
+    address: string
+    runner: string
+    healthy: boolean
+    lastHeartbeat: string
+  }>
+  shardAssignments: ReadonlyArray<{
+    shardId: string
+    address: string
+    acquiredAt: string
+  }>
+  maxShard: number
+  shardEntities: ReadonlyArray<{
+    shardId: string
+    entityCount: number
+  }>
 }
 
 /**
  * Assemble an OverviewSnapshot from raw OverviewReader query results.
+ * Only fields backed by real SQL columns are populated.
  */
 export const buildSnapshotFromDb = (raw: OverviewReaderResult): OverviewSnapshot => {
-  const { activity, entityTypes, now, recentCount, shardCounts, stats } = raw
+  const {
+    activeRunners,
+    activity,
+    allRunners,
+    entityTypes,
+    maxShard,
+    now,
+    recentCount,
+    shardAssignments,
+    shardEntities,
+    stats
+  } = raw
 
-  // ── Workflow stats from status counts ──────────────────────────────────
+  // ── Workflow stats from status counts (unchanged, from cluster_messages) ──
   const statusMap = new Map<string, number>()
   for (const s of stats) statusMap.set(s.status, s.count)
 
@@ -90,7 +141,7 @@ export const buildSnapshotFromDb = (raw: OverviewReaderResult): OverviewSnapshot
   const failed = failedApp + crashed + interrupted
   const totalFailed = failed + unknown
 
-  // ── Activity: build evenly-spaced 15-min buckets over the last 24h ────
+  // ── Activity chart: evenly-spaced 15-min buckets over last 24h (unchanged) ──
   const activityMap = new Map<string, { completed: number; failed: number }>()
   for (const row of activity) {
     activityMap.set(row.bucket, { completed: row.completed, failed: row.failed })
@@ -119,49 +170,102 @@ export const buildSnapshotFromDb = (raw: OverviewReaderResult): OverviewSnapshot
     })
   }
 
-  // ── Shards ─────────────────────────────────────────────────────────────
-  const assignedShardIds = new Set(shardCounts.map((s) => s.shardId))
-  // Use the max numeric shard ID + 1 as the total, or at least 16
-  const maxShardId = shardCounts.reduce((m, s) => Math.max(m, Number.parseInt(s.shardId, 10) || 0), 0)
-  const shardsTotal = Math.max(maxShardId + 1, assignedShardIds.size, 16)
-  const shards: Array<ShardInfo> = Array.from({ length: shardsTotal }, (_, i) => ({
-    id: i,
-    status: assignedShardIds.has(String(i)) ? "assigned" : "unassigned"
-  }))
-  const shardsAssigned = shards.filter((s) => s.status === "assigned").length
+  // ── Cluster: active vs all runners ──────────────────────────────────────
+  const LOCK_EXPIRY_MS = 35_000 // 35s default lock expiration
+  const nowMs = now.getTime()
+
+  const activeRunnerAddresses = new Set<string>()
+  for (const r of activeRunners) {
+    if (r.healthy) {
+      activeRunnerAddresses.add(r.address)
+    }
+  }
+
+  const staleRunnerAddresses = new Set<string>()
+  for (const r of allRunners) {
+    if (!activeRunnerAddresses.has(r.address)) {
+      staleRunnerAddresses.add(r.address)
+    }
+  }
+
+  const nodesUp = activeRunnerAddresses.size
+  const nodesTotal = allRunners.length
+
+  // ── Shards from cluster_locks ────────────────────────────────────────────
+  const assignedShardMap = new Map<string, string>() // shardId → runner address
+  const shardEntitiesMap = new Map<string, number>() // shardId → entity count
+
+  for (const a of shardAssignments) {
+    // Verify acquired_at is within lock expiry window (double-check)
+    const acquiredMs = Date.parse(a.acquiredAt.replace(" ", "T"))
+    if (!Number.isNaN(acquiredMs) && (nowMs - acquiredMs) < LOCK_EXPIRY_MS) {
+      assignedShardMap.set(a.shardId, a.address)
+    }
+  }
+
+  for (const e of shardEntities) {
+    shardEntitiesMap.set(e.shardId, e.entityCount)
+  }
+
+  // Build the 300 shard grid
+  const SHARDS_TOTAL = maxShard
+  const shards: Array<ShardInfo> = []
+  for (let i = 1; i <= SHARDS_TOTAL; i++) {
+    const id = `default:${i}`
+    shards.push({
+      id,
+      num: i,
+      status: assignedShardMap.has(id) ? "assigned" : "unassigned",
+      entities: shardEntitiesMap.get(id) ?? null
+    })
+  }
+  const shardsAssigned = assignedShardMap.size
+
+  // ── Nodes from cluster_runners ────────────────────────────────────────────
+  // Count assigned shards per runner address
+  const shardsPerRunner = new Map<string, number>()
+  for (const [, address] of assignedShardMap) {
+    shardsPerRunner.set(address, (shardsPerRunner.get(address) ?? 0) + 1)
+  }
+
+  const nodes: Array<NodeInfo> = allRunners.map((r) => {
+    const isActive = activeRunnerAddresses.has(r.address)
+    // Parse the runner JSON to extract groups
+    let groupsStr = r.runner
+    try {
+      const parsed = JSON.parse(r.runner)
+      if (parsed.groups) {
+        groupsStr = JSON.stringify(parsed.groups)
+      }
+    } catch { /* use raw runner string */ }
+
+    return {
+      id: r.address,
+      addr: r.address,
+      status: isActive ? "healthy" : "offline",
+      groups: groupsStr,
+      healthy: r.healthy,
+      lastHeartbeat: r.lastHeartbeat,
+      assignedShards: shardsPerRunner.get(r.address) ?? 0
+    }
+  })
 
   // ── Entities ───────────────────────────────────────────────────────────
-  const entitiesTotal = entityTypes.length
-
-  // ── Nodes (inferred from shard distribution) ───────────────────────────
-  // Effect Cluster typically assigns multiple shards per node.
-  const SHARDS_PER_NODE = 4
-  const nodeCount = Math.max(Math.ceil(shardsAssigned / SHARDS_PER_NODE), 1)
-  const entitiesPerNode = Math.max(Math.round(entitiesTotal / nodeCount), 1)
-  const workflowsPerNode = Math.max(Math.round(success / Math.max(nodeCount, 1)), 1)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const msgsPerNode = Math.max(Math.round(recentCount / Math.max(nodeCount, 1)), 1)
-
-  const nodes: Array<NodeInfo> = Array.from({ length: nodeCount }, (_, i) => ({
-    id: `worker-${i + 1}`,
-    addr: `worker-${i + 1}.cluster.local`,
-    status: "healthy" as const,
-    entities: entitiesPerNode,
-    workflows: workflowsPerNode,
-    cpuPct: Math.round(25 + ((i * 17) % 50)) // deterministic distribution
-  }))
+  // Entity types seen (distinct workflow names) — from cluster_messages
+  // Semantically honest: "workflow types observed"
+  const entitiesTotalSeen = entityTypes.length
 
   // ── Msg/sec estimate ───────────────────────────────────────────────────
   const msgPerSec = Math.round(recentCount / 3600)
 
   return {
     cluster: {
-      nodesUp: nodeCount,
-      nodesTotal: nodeCount,
-      activeEntities: entitiesTotal,
-      entitiesTotal: entitiesTotal + pending,
+      nodesUp,
+      nodesTotal,
+      activeEntities: entitiesTotalSeen,
+      entitiesTotal: entitiesTotalSeen,
       shardsAssigned,
-      shardsTotal,
+      shardsTotal: SHARDS_TOTAL,
       msgPerSec,
       avgLatencyMs: 0,
       msgDeltaPct: 0

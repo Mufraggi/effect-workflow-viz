@@ -36,6 +36,7 @@ import { RunDetailPage } from "./run-detail-page.js"
 import { RunsPage } from "./runs-page.js"
 import { SettingsPage } from "./settings-page.js"
 import { SetupPage } from "./setup-page.js"
+import { ShardsPage } from "./shards-page.js"
 
 const PaginatedRunSummary = Paginated(RunSummary)
 const encodeRuns = Schema.encodeSync(PaginatedRunSummary)
@@ -813,6 +814,38 @@ export default createController(routes, {
         const currentPath = url.pathname + url.search
         return render(
           <OverviewPage
+            initialSnapshot={initialSnapshot}
+            environments={environments}
+            activeEnvId={envId ?? null}
+            currentPath={currentPath}
+          />
+        )
+      }
+    },
+
+    // GET /shards — Dedicated shard distribution page.
+    shards: {
+      middleware: protect,
+      async handler({ render, session, url }) {
+        const envId = session?.get?.("envId") as string | undefined
+        const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
+          id: e.id,
+          name: e.name,
+          isDefault: e.isDefault
+        }))
+
+        let initialSnapshot = null
+        if (envId) {
+          try {
+            initialSnapshot = await loadOverviewSnapshot(envId)
+          } catch {
+            // Initial load failed
+          }
+        }
+
+        const currentPath = url.pathname + url.search
+        return render(
+          <ShardsPage
             initialSnapshot={initialSnapshot}
             environments={environments}
             activeEnvId={envId ?? null}

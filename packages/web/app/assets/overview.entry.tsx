@@ -76,10 +76,27 @@ const s = {
     gap: ".75rem",
     marginTop: "1rem"
   }),
-  noData: css({
+  idle: css({
     textAlign: "center",
     padding: "4rem 2rem",
     color: tk.mutedFg
+  }),
+  idleIcon: css({
+    fontSize: "3rem",
+    display: "block",
+    marginBottom: "1rem"
+  }),
+  idleTitle: css({
+    fontSize: "1.1rem",
+    fontWeight: 600,
+    color: tk.fg,
+    margin: "0 0 .5rem"
+  }),
+  idleText: css({
+    fontSize: ".85rem",
+    maxWidth: "28rem",
+    margin: "0 auto",
+    lineHeight: 1.6
   })
 }
 
@@ -178,6 +195,10 @@ export const OverviewEntry: EntryComponent<OverviewEntryProps> = clientEntry(
       }
     }
 
+    const isClusterIdle = (): boolean => {
+      return snapshot.cluster.nodesUp === 0 && snapshot.cluster.shardsAssigned === 0
+    }
+
     return () => {
       const { activity, cluster, nodes, shards, workflows } = snapshot
       const dot = STATUS_DOT[connState]
@@ -192,6 +213,8 @@ export const OverviewEntry: EntryComponent<OverviewEntryProps> = clientEntry(
         : connState === "connecting"
         ? "○ Connecting"
         : "⚠ Reconnecting"
+
+      const clusterIdle = isClusterIdle()
 
       return (
         <main mix={s.container}>
@@ -225,36 +248,55 @@ export const OverviewEntry: EntryComponent<OverviewEntryProps> = clientEntry(
             </div>
           </div>
 
+          {/* ── IDLE STATE ── */}
+          {clusterIdle && (
+            <div mix={s.idle}>
+              <span mix={s.idleIcon}>💤</span>
+              <h2 mix={s.idleTitle}>Cluster Idle</h2>
+              <p mix={s.idleText}>
+                No active runners detected. The cluster has {cluster.nodesTotal}{" "}
+                registered runner{nodes.length > 1 ? "s" : ""} but no heartbeat within the lock expiration window (35s).
+              </p>
+            </div>
+          )}
+
           {/* ── CLUSTER KPIs ── */}
           <SectionHeader label="Cluster" />
           <div mix={s.kpiRow}>
             <KpiCard
               title="Nodes"
               value={`${cluster.nodesUp}/${cluster.nodesTotal}`}
-              sub={`${cluster.nodesTotal - cluster.nodesUp} offline`}
-              accent={cluster.nodesUp === cluster.nodesTotal
+              sub={cluster.nodesTotal > 0
+                ? `${cluster.nodesTotal - cluster.nodesUp} offline`
+                : "no runners"}
+              accent={cluster.nodesUp === cluster.nodesTotal && cluster.nodesTotal > 0
                 ? "green"
-                : cluster.nodesUp >= cluster.nodesTotal / 2
+                : cluster.nodesUp >= Math.max(cluster.nodesTotal / 2, 1)
                 ? "amber"
-                : "red"}
+                : cluster.nodesTotal > 0
+                ? "red"
+                : "neutral"}
             />
             <KpiCard
-              title="Entities"
-              value={fmtNum(cluster.activeEntities)}
-              sub={`of ${fmtNum(cluster.entitiesTotal)} total`}
+              title="Entities Seen"
+              value={fmtNum(cluster.entitiesTotal)}
+              sub="workflow types observed"
               accent="neutral"
             />
             <KpiCard
               title="Shards"
               value={`${cluster.shardsAssigned}/${cluster.shardsTotal}`}
               sub={`${cluster.shardsTotal - cluster.shardsAssigned} unassigned`}
-              accent={cluster.shardsAssigned === cluster.shardsTotal ? "green" : "amber"}
+              accent={cluster.shardsAssigned === cluster.shardsTotal && cluster.shardsTotal > 0
+                ? "green"
+                : cluster.shardsAssigned > 0
+                ? "amber"
+                : "neutral"}
             />
             <KpiCard
-              title="Msg / sec"
-              value={fmtNum(cluster.msgPerSec)}
-              sub={`${cluster.avgLatencyMs}ms avg latency`}
-              delta={fmtDelta(cluster.msgDeltaPct)}
+              title="Rebalancing"
+              value="—"
+              sub="not tracked by storage"
               accent="neutral"
             />
           </div>

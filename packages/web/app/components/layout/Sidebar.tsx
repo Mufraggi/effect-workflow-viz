@@ -142,7 +142,7 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { id: "overview", label: "Overview", icon: IconOverview, section: "overview", href: routes.overview.href() },
   { id: "nodes", label: "Nodes", icon: IconNodes, section: "cluster" },
   { id: "entities", label: "Entities", icon: IconEntities, section: "cluster" },
-  { id: "shards", label: "Shards", icon: IconShards, section: "cluster" },
+  { id: "shards", label: "Shards", icon: IconShards, section: "cluster", href: routes.shards.href() },
   { id: "executions", label: "Executions", icon: IconExecutions, section: "workflows" },
   { id: "activities", label: "Activities", icon: IconActivities, section: "workflows" },
   { id: "definitions", label: "Definitions", icon: IconDefinitions, section: "workflows" },

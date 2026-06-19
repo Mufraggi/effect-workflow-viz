@@ -1,5 +1,5 @@
 import { css, type Handle } from "remix/ui"
-import type { NodeInfo, NodeStatus } from "../../types/overview.js"
+import type { NodeInfo } from "../../types/overview.js"
 import { tk } from "../../ui/tokens.js"
 
 // ---------------------------------------------------------------------------
@@ -13,7 +13,9 @@ const s = {
     borderRadius: tk.radius,
     padding: "1rem 1.25rem",
     flex: 1,
-    minWidth: 0
+    minWidth: 0,
+    display: "flex",
+    flexDirection: "column"
   }),
   title: css({
     fontSize: ".72rem",
@@ -26,7 +28,8 @@ const s = {
   list: css({
     display: "flex",
     flexDirection: "column",
-    gap: ".35rem"
+    gap: ".35rem",
+    flex: 1
   }),
   row: css({
     display: "flex",
@@ -44,16 +47,24 @@ const s = {
     borderRadius: "50%",
     flexShrink: 0
   }),
-  nodeId: css({
+  nodeAddr: css({
     fontWeight: 600,
     color: tk.fg,
-    minWidth: "5.5rem"
+    minWidth: "6rem"
+  }),
+  groups: css({
+    color: tk.mutedFg,
+    fontSize: ".65rem",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    maxWidth: "8rem"
   }),
   stats: css({
     display: "flex",
     gap: ".75rem",
-    color: tk.dimmedFg,
-    marginLeft: "auto"
+    marginLeft: "auto",
+    color: tk.dimmedFg
   }),
   stat: css({
     display: "flex",
@@ -64,28 +75,40 @@ const s = {
     fontSize: ".65rem",
     color: tk.mutedFg
   }),
-  cpuBar: css({
-    width: "3rem",
-    height: ".35rem",
-    borderRadius: "999px",
-    background: tk.borderLight,
-    overflow: "hidden",
-    flexShrink: 0
+  idle: css({
+    textAlign: "center",
+    padding: "2rem 1rem",
+    color: tk.dimmedFg,
+    fontSize: ".8rem",
+    lineHeight: 1.6,
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center"
   }),
-  cpuFill: css({
-    height: "100%",
-    borderRadius: "999px",
-    transition: "width 0.3s"
+  idleIcon: css({
+    fontSize: "1.5rem",
+    display: "block",
+    marginBottom: ".5rem"
   })
 }
 
-const STATUS_DOT: Record<NodeStatus, string> = {
-  healthy: "#22c55e",
-  degraded: "#eab308",
-  offline: tk.dimmedFg
-}
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-const CPU_COLOR = (pct: number): string => pct > 80 ? "#ef4444" : pct > 60 ? "#eab308" : "#22c55e"
+const fmtHeartbeat = (hb: string | null): string => {
+  if (!hb) return "—"
+  const d = new Date(hb.replace(" ", "T"))
+  if (Number.isNaN(d.getTime())) return hb
+  const now = Date.now()
+  const diff = now - d.getTime()
+  if (diff < 60_000) return "just now"
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
+  return `${Math.floor(diff / 86_400_000)}d ago`
+}
 
 // ---------------------------------------------------------------------------
 // NodeRow
@@ -94,42 +117,24 @@ const CPU_COLOR = (pct: number): string => pct > 80 ? "#ef4444" : pct > 60 ? "#e
 function NodeRow(handle: Handle<{ node: NodeInfo }>) {
   return () => {
     const { node } = handle.props
+    const dotColor = node.status === "healthy" ? "#22c55e" : tk.dimmedFg
     return (
       <div mix={s.row}>
-        <span
-          mix={s.dot}
-          style={{ background: STATUS_DOT[node.status] }}
-        />
-        <span mix={s.nodeId}>{node.id}</span>
-        <span style={{ color: tk.mutedFg, fontSize: ".65rem" }}>
-          {node.status === "offline" ? "offline" : node.addr}
+        <span mix={s.dot} style={{ background: dotColor }} />
+        <span mix={s.nodeAddr}>{node.id}</span>
+        <span mix={s.groups} title={node.groups}>
+          {node.groups}
         </span>
         <div mix={s.stats}>
           <span mix={s.stat}>
-            <span mix={s.statLabel}>E</span>
-            {node.entities}
+            <span mix={s.statLabel}>S</span>
+            {node.assignedShards}
           </span>
           <span mix={s.stat}>
-            <span mix={s.statLabel}>W</span>
-            {node.workflows}
+            <span mix={s.statLabel}>HB</span>
+            {fmtHeartbeat(node.lastHeartbeat)}
           </span>
         </div>
-        {node.status !== "offline" && (
-          <div style={{ display: "flex", alignItems: "center", gap: ".35rem" }}>
-            <div mix={s.cpuBar}>
-              <div
-                mix={s.cpuFill}
-                style={{
-                  width: `${node.cpuPct}%`,
-                  background: CPU_COLOR(node.cpuPct)
-                }}
-              />
-            </div>
-            <span style={{ fontSize: ".65rem", color: tk.dimmedFg, fontFamily: tk.fontMono }}>
-              {node.cpuPct}%
-            </span>
-          </div>
-        )}
       </div>
     )
   }
@@ -142,12 +147,30 @@ function NodeRow(handle: Handle<{ node: NodeInfo }>) {
 export function NodesPanel(handle: Handle<{ nodes: ReadonlyArray<NodeInfo> }>) {
   return () => {
     const { nodes } = handle.props
+    const activeNodes = nodes.filter((n) => n.status === "healthy")
+
     return (
       <div mix={s.panel}>
-        <div mix={s.title}>Cluster Nodes</div>
-        <div mix={s.list}>
-          {nodes.map((node) => <NodeRow key={node.id} node={node} />)}
-        </div>
+        <div mix={s.title}>Cluster Nodes ({activeNodes.length} active)</div>
+        {nodes.length === 0 ?
+          (
+            <div mix={s.idle}>
+              <span mix={s.idleIcon}>⚡</span>
+              No runners registered.
+            </div>
+          ) :
+          activeNodes.length === 0 ?
+          (
+            <div mix={s.idle}>
+              <span mix={s.idleIcon}>💤</span>
+              All runners are stale or offline.
+            </div>
+          ) :
+          (
+            <div mix={s.list}>
+              {nodes.map((node) => <NodeRow key={node.id} node={node} />)}
+            </div>
+          )}
       </div>
     )
   }
