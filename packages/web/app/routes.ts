@@ -31,5 +31,17 @@ export const routes = route({
   // API endpoint for environment CRUD.
   environments: get("/environments"),
   // API endpoint — switch active environment (stored in session).
-  selectEnv: get("/select-env")
+  selectEnv: get("/select-env"),
+  // Cluster Overview page with live SSE streaming.
+  overview: "/overview",
+  // SSE endpoint for live overview snapshots.
+  overviewStream: get("/overview/stream"),
+  // Dedicated Nodes page — runners status, shards per node.
+  nodes: "/nodes",
+  // Dedicated Shards page — dense heatmap + nodes.
+  shards: "/shards",
+  // Read-only workflow executions list.
+  executions: "/executions",
+  // Read-only detail for a single execution, keyed by executionId (entity_id).
+  executionShow: "/executions/:executionId"
 })

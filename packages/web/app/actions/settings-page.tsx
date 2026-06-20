@@ -362,7 +362,7 @@ export function SettingsPage(handle: Handle<SettingsPageProps>) {
                 </div>
                 <div mix={s.field}>
                   <span mix={s.lbl}>User</span>
-                  <input mix={s.input} type="text" name="user" required />
+                  <input mix={s.input} type="text" name="user" maxlength={63} required />
                 </div>
                 <div mix={s.field}>
                   <span mix={s.lbl}>Password</span>

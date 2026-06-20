@@ -1,5 +1,6 @@
 import { AuthRepository } from "@template/auth/AuthRepository"
 import { hashPassword } from "@template/auth/password"
+import { makeOverviewReader } from "@template/database/repository/overviewReader/OverviewReader"
 import { makeWorkflowReader } from "@template/database/repository/workflowReader/WorkflowReader"
 import { Email } from "@template/domain/auth/Email"
 import { PageRequest, Paginated } from "@template/domain/Pagination"
@@ -16,7 +17,7 @@ import { EnvironmentRepository } from "@template/environments/EnvironmentReposit
 import { Effect, Option, Schema } from "effect"
 import { completeAuth, verifyCredentials } from "remix/auth"
 import * as s from "remix/data-schema"
-import { email as emailCheck, minLength } from "remix/data-schema/checks"
+import { email as emailCheck, maxLength, minLength } from "remix/data-schema/checks"
 import * as f from "remix/data-schema/form-data"
 import { redirect } from "remix/response/redirect"
 import { createController } from "remix/router"
@@ -26,13 +27,19 @@ import { requireAuthRedirect, setupGuard } from "../auth/guards.js"
 import { passwordProvider } from "../auth/provider.js"
 import { runtime } from "../data/runtime.js"
 import { routes } from "../routes.js"
+import { buildSnapshotFromDb } from "../types/overview.js"
 import { buildFilterQuery, type RunsFilters } from "../utils/runs.js"
 import { ChartPage } from "./chart-page.js"
+import { ExecutionDetailPage } from "./execution-detail-page.js"
+import { ExecutionsPage } from "./executions-page.js"
 import { LoginPage } from "./login-page.js"
+import { NodesPage } from "./nodes-page.js"
+import { OverviewPage } from "./overview-page.js"
 import { RunDetailPage } from "./run-detail-page.js"
 import { RunsPage } from "./runs-page.js"
 import { SettingsPage } from "./settings-page.js"
 import { SetupPage } from "./setup-page.js"
+import { ShardsPage } from "./shards-page.js"
 
 const PaginatedRunSummary = Paginated(RunSummary)
 const encodeRuns = Schema.encodeSync(PaginatedRunSummary)
@@ -61,6 +68,22 @@ const updateUserSchema = f.object({
 })
 const deleteUserSchema = f.object({
   id: f.field(s.string().pipe(minLength(1)))
+})
+
+// Admin environment-management form on the settings page. Length limits keep
+// the values within Postgres' constraints (identifiers cap at 63 chars).
+const createEnvSchema = f.object({
+  name: f.field(s.string().pipe(minLength(1), maxLength(64))),
+  host: f.field(s.string().pipe(minLength(1), maxLength(255))),
+  port: f.field(s.defaulted(s.string(), "")),
+  user: f.field(s.string().pipe(minLength(1), maxLength(63))),
+  password: f.field(s.string().pipe(minLength(1), maxLength(256))),
+  dbName: f.field(s.string().pipe(minLength(1), maxLength(63))),
+  ssl: f.field(s.defaulted(s.string(), "false")),
+  isDefault: f.field(s.defaulted(s.string(), ""))
+})
+const envIdSchema = f.object({
+  envId: f.field(s.string().pipe(minLength(1)))
 })
 
 // Parse a date-range param. Naive datetime-local values (no offset) are read as
@@ -215,6 +238,20 @@ const loadRunDetailWithEnv = (
     })
   )
 
+const loadExecutionDetailWithEnv = (
+  envId: string,
+  executionId: string
+) =>
+  runtime.runPromiseExit(
+    Effect.gen(function*() {
+      const db = yield* DbManager
+      const pg = yield* db.getClient(envId)
+      const reader = makeWorkflowReader(pg)
+      const run = yield* reader.getRunByExecutionId(executionId)
+      return { _tag: "ok" as const, run }
+    })
+  )
+
 const loadChildrenWithEnv = (
   envId: string,
   messageId: MessageId
@@ -236,6 +273,50 @@ const loadChildrenWithEnv = (
 // Brute-force lockout// Brute-force lockout: block an IP after this many failures within the window.
 const RATE_LIMIT_WINDOW_MINUTES = 15
 const RATE_LIMIT_MAX_FAILURES = 10
+
+// ── Overview loader ─────────────────────────────────────────────────────
+
+const loadOverviewSnapshot = (envId: string) =>
+  runtime.runPromise(
+    Effect.gen(function*() {
+      const db = yield* DbManager
+      const pg = yield* db.getClient(envId)
+      const reader = makeOverviewReader(pg)
+      const raw = yield* reader.buildSnapshot()
+      return buildSnapshotFromDb(raw)
+    })
+  )
+
+// ── Executions loader — list all runs without pagination ──────────────
+
+const encodeRunsFlat = Schema.encodeSync(Schema.Array(RunSummary))
+
+// PageRequest caps a single page at 200, so page through (passing `before`)
+// up to EXECUTIONS_MAX, mirroring loadChartRunsWithEnv.
+const EXECUTIONS_MAX = 1000
+const EXECUTIONS_PAGE = 200
+
+const loadExecutionsWithEnv = (envId: string) =>
+  runtime.runPromise(
+    Effect.gen(function*() {
+      const db = yield* DbManager
+      const pg = yield* db.getClient(envId)
+      const reader = makeWorkflowReader(pg)
+      const items: Array<RunSummary> = []
+      let before: string | null = null
+      while (items.length < EXECUTIONS_MAX) {
+        const limit = Math.min(EXECUTIONS_PAGE, EXECUTIONS_MAX - items.length)
+        const page: { items: ReadonlyArray<RunSummary>; nextCursor: string | null } = yield* reader.listRuns(
+          {},
+          new PageRequest({ limit, before })
+        )
+        for (const item of page.items) items.push(item)
+        before = page.nextCursor
+        if (before === null || page.items.length === 0) break
+      }
+      return encodeRunsFlat(items)
+    })
+  )
 
 // Short server-side date format for the settings activity log (UTC).
 const fmtAt = (d: Date): string => d.toISOString().slice(0, 19).replace("T", " ")
@@ -562,6 +643,53 @@ export default createController(routes, {
             return flashTo("success", `Account ${result.email} updated.`)
           }
 
+          if (intent === "create-env") {
+            const parsed = s.parseSafe(createEnvSchema, form)
+            if (!parsed.success) {
+              return flashTo(
+                "error",
+                "Enter a name, host, user (max 63 chars), password and database for the environment."
+              )
+            }
+            const v = parsed.value
+            const outcome = await runWithEnvs((repo) =>
+              repo.create({
+                name: v.name,
+                host: v.host,
+                ...(v.port !== "" ? { port: v.port } : {}),
+                user: v.user,
+                password: v.password,
+                dbName: v.dbName,
+                ssl: v.ssl === "true",
+                isDefault: v.isDefault === "true"
+              }).pipe(
+                Effect.map((env) => ({ _tag: "ok" as const, env })),
+                Effect.catchAllDefect(() => Effect.succeed({ _tag: "conflict" as const }))
+              )
+            )
+            if (outcome._tag === "conflict") {
+              return flashTo("error", "An environment with that name already exists.")
+            }
+            return flashTo("success", `Environment ${outcome.env.name} created.`)
+          }
+
+          if (intent === "set-default-env") {
+            const parsed = s.parseSafe(envIdSchema, form)
+            if (!parsed.success) return flashTo("error", "Could not update that environment.")
+            await runWithEnvs((repo) => repo.update(parsed.value.envId, { isDefault: true }))
+            return flashTo("success", "Default environment updated.")
+          }
+
+          if (intent === "delete-env") {
+            const parsed = s.parseSafe(envIdSchema, form)
+            if (!parsed.success) return flashTo("error", "Could not delete that environment.")
+            await runWithEnvs((repo) => repo.delete(parsed.value.envId))
+            if (context.session.get("envId") === parsed.value.envId) {
+              context.session.unset("envId")
+            }
+            return flashTo("success", "Environment deleted.")
+          }
+
           // intent === "create"
           const parsed = s.parseSafe(createUserSchema, form)
           if (!parsed.success) {
@@ -708,6 +836,221 @@ export default createController(routes, {
       async handler() {
         const envs = await runWithEnvs((r) => r.list)
         return Response.json(envs)
+      }
+    },
+
+    // GET /overview — Cluster Overview page with live data from DB.
+    overview: {
+      middleware: protect,
+      async handler({ render, session, url }) {
+        const envId = session?.get?.("envId") as string | undefined
+        const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
+          id: e.id,
+          name: e.name,
+          isDefault: e.isDefault
+        }))
+
+        let initialSnapshot = null
+        if (envId) {
+          try {
+            initialSnapshot = await loadOverviewSnapshot(envId)
+          } catch {
+            // Initial load failed — render with no snapshot; the SSE stream retries.
+          }
+        }
+
+        const currentPath = url.pathname + url.search
+        return render(
+          <OverviewPage
+            initialSnapshot={initialSnapshot}
+            environments={environments}
+            activeEnvId={envId ?? null}
+            currentPath={currentPath}
+          />
+        )
+      }
+    },
+
+    // GET /shards — Dedicated shard distribution page.
+    shards: {
+      middleware: protect,
+      async handler({ render, session, url }) {
+        const envId = session?.get?.("envId") as string | undefined
+        const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
+          id: e.id,
+          name: e.name,
+          isDefault: e.isDefault
+        }))
+
+        let initialSnapshot = null
+        if (envId) {
+          try {
+            initialSnapshot = await loadOverviewSnapshot(envId)
+          } catch {
+            // Initial load failed
+          }
+        }
+
+        const currentPath = url.pathname + url.search
+        return render(
+          <ShardsPage
+            initialSnapshot={initialSnapshot}
+            environments={environments}
+            activeEnvId={envId ?? null}
+            currentPath={currentPath}
+          />
+        )
+      }
+    },
+
+    // GET /nodes — Dedicated nodes page (runner status, shards per node).
+    nodes: {
+      middleware: protect,
+      async handler({ render, session, url }) {
+        const envId = session?.get?.("envId") as string | undefined
+        const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
+          id: e.id,
+          name: e.name,
+          isDefault: e.isDefault
+        }))
+
+        let initialSnapshot = null
+        if (envId) {
+          try {
+            initialSnapshot = await loadOverviewSnapshot(envId)
+          } catch {
+            // Initial load failed
+          }
+        }
+
+        const currentPath = url.pathname + url.search
+        return render(
+          <NodesPage
+            initialSnapshot={initialSnapshot}
+            environments={environments}
+            activeEnvId={envId ?? null}
+            currentPath={currentPath}
+          />
+        )
+      }
+    },
+
+    // GET /executions — Read-only workflow executions list.
+    executions: {
+      middleware: protect,
+      async handler({ render, session, url }) {
+        const envId = session?.get?.("envId") as string | undefined
+        const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
+          id: e.id,
+          name: e.name,
+          isDefault: e.isDefault
+        }))
+
+        let executions = null
+        if (envId) {
+          try {
+            executions = await loadExecutionsWithEnv(envId)
+          } catch {
+            // Load failed
+          }
+        }
+
+        const currentPath = url.pathname + url.search
+        return render(
+          <ExecutionsPage
+            executions={executions}
+            environments={environments}
+            activeEnvId={envId ?? null}
+            currentPath={currentPath}
+          />
+        )
+      }
+    },
+
+    // GET /executions/:executionId — read-only detail for one execution.
+    executionShow: {
+      middleware: protect,
+      async handler({ params, render, session, url }) {
+        const envId = session?.get?.("envId") as string | undefined
+        if (!envId) return new Response("No environment selected", { status: 404 })
+
+        const result = await loadExecutionDetailWithEnv(envId, params.executionId)
+        const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
+          id: e.id,
+          name: e.name,
+          isDefault: e.isDefault
+        }))
+        const currentPath = url.pathname + url.search
+
+        if (result._tag === "Failure") {
+          return new Response("Execution not found", { status: 404 })
+        }
+        return render(
+          <ExecutionDetailPage
+            run={encodeRunDetail(result.value.run)}
+            environments={environments}
+            activeEnvId={envId}
+            currentPath={currentPath}
+          />
+        )
+      }
+    },
+
+    // GET /overview/stream — SSE endpoint for live overview snapshots (poll DB every 10s).
+    overviewStream: {
+      middleware: protect,
+      async handler({ request, session }) {
+        const envId = session?.get?.("envId") as string | undefined
+        const encoder = new TextEncoder()
+        let timer: ReturnType<typeof setInterval> | null = null
+        let fetching = false
+
+        const enqueue = (controller: ReadableStreamDefaultController<Uint8Array>, data: unknown) => {
+          try {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
+          } catch {
+            // Stream may be closed
+          }
+        }
+
+        const sendSnapshot = async (controller: ReadableStreamDefaultController<Uint8Array>) => {
+          if (fetching || !envId) return
+          fetching = true
+          try {
+            const snapshot = await loadOverviewSnapshot(envId)
+            enqueue(controller, snapshot)
+          } catch {
+            // Query failed — stream continues, next tick will retry
+          } finally {
+            fetching = false
+          }
+        }
+
+        const stream = new ReadableStream({
+          start(controller) {
+            // Send initial snapshot
+            sendSnapshot(controller)
+
+            // Poll every 10 seconds (the `fetching` guard prevents overlap)
+            timer = setInterval(() => sendSnapshot(controller), 10_000)
+
+            // Cleanup when cancelled
+            request.signal.addEventListener("abort", () => {
+              if (timer !== null) clearInterval(timer)
+            })
+          },
+          cancel() {
+            if (timer !== null) clearInterval(timer)
+          }
+        })
+
+        return new Response(stream, {
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive"
+          }
+        })
       }
     }
   }

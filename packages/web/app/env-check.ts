@@ -2,16 +2,19 @@
 // `server.ts` immediately after `env.ts` has loaded any local `.env` into
 // `process.env`.
 //
-// Without this, the Effect config layers (PgLive, SqliteLive) only fail lazily
-// on the first DB access, with an opaque ConfigError buried in a request's 500.
-// Checking here surfaces every missing variable up front, with a clear message
-// and a non-zero exit — so a misconfigured container dies on startup instead of
+// Without this, the Effect config layers (SqliteLive) only fail lazily on the
+// first access, with an opaque ConfigError buried in a request's 500. Checking
+// here surfaces every missing variable up front, with a clear message and a
+// non-zero exit — so a misconfigured container dies on startup instead of
 // silently serving errors.
+//
+// Note: Postgres connections are no longer configured via `.env`. They are
+// resolved per-environment by DbManager from the SQLite environments store, so
+// no DB_* variables are required here.
 
 const isProd = process.env.NODE_ENV === "production"
 
-// Always required: the read-only Postgres connection (see @template/database PgLive).
-const required = ["DB_HOST", "DB_PORT", "DB_USER", "DB_PWD", "DB_NAME", "ENV"]
+const required: Array<string> = []
 
 // Required only in production: the session-cookie signing secret. In dev,
 // app/auth/cookie.ts falls back to a fixed insecure secret so the app boots.

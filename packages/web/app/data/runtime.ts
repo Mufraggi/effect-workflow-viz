@@ -1,30 +1,20 @@
-import { GetChildRunsQuery } from "@template/api/run/query/GetChildRunsQuery"
-import { GetRunQuery } from "@template/api/run/query/GetRunQuery"
-import { ListRunsQuery } from "@template/api/run/query/ListRunsQuery"
 import { AuthRepository } from "@template/auth/AuthRepository"
-import { PgLive } from "@template/database/PgLive"
 import { DbManager } from "@template/environments/DbManager"
 import { EnvironmentRepository } from "@template/environments/EnvironmentRepository"
 import { Layer, ManagedRuntime } from "effect"
 
 /**
- * The application layer shared across all Remix route handlers.
- */
-const ReadLayer = Layer.mergeAll(
-  ListRunsQuery.Default,
-  GetRunQuery.Default,
-  GetChildRunsQuery.Default
-).pipe(Layer.provideMerge(PgLive))
-
-/**
- * Root layer: workflow queries + SQLite-backed services + DbManager.
+ * Root layer: SQLite-backed services + DbManager.
  *
- * Both AuthRepository.Default and EnvironmentRepository.Default now
- * bundle SqliteLive in their dependencies, so SqlClient resolves without
- * additional provision at the merge level.
+ * All Postgres access goes through DbManager.getClient(envId), which builds a
+ * connection from the environment configuration stored in SQLite (auth.db) —
+ * the app never reads DB_* from `.env`.
+ *
+ * Both AuthRepository.Default and EnvironmentRepository.Default bundle
+ * SqliteLive in their dependencies, so SqlClient resolves without additional
+ * provision at the merge level.
  */
 const AppLayer = Layer.mergeAll(
-  ReadLayer,
   AuthRepository.Default,
   EnvironmentRepository.Default,
   DbManager.Default

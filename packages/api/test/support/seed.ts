@@ -30,6 +30,7 @@ const makeDetail = (params: {
     startedAt: null,
     durationMs: null,
     status: params.status,
+    replyId: null,
     input: null,
     output: null,
     children: []
