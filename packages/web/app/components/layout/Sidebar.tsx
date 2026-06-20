@@ -51,16 +51,6 @@ function IconNodes() {
   )
 }
 
-function IconEntities() {
-  return () => (
-    <Svg>
-      <path d="M4 6h16" />
-      <path d="M4 12h16" />
-      <path d="M4 18h12" />
-    </Svg>
-  )
-}
-
 function IconShards() {
   return () => (
     <Svg>
@@ -75,26 +65,6 @@ function IconExecutions() {
   return () => (
     <Svg>
       <polygon points="6 3 20 12 6 21 6 3" />
-    </Svg>
-  )
-}
-
-function IconActivities() {
-  return () => (
-    <Svg viewBox="0 0 24 24">
-      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-    </Svg>
-  )
-}
-
-function IconDefinitions() {
-  return () => (
-    <Svg>
-      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="16" y1="13" x2="8" y2="13" />
-      <line x1="16" y1="17" x2="8" y2="17" />
-      <polyline points="10 9 9 9 8 9" />
     </Svg>
   )
 }
@@ -140,12 +110,9 @@ interface NavItem {
 
 const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { id: "overview", label: "Overview", icon: IconOverview, section: "overview", href: routes.overview.href() },
-  { id: "nodes", label: "Nodes", icon: IconNodes, section: "cluster" },
-  { id: "entities", label: "Entities", icon: IconEntities, section: "cluster" },
+  { id: "nodes", label: "Nodes", icon: IconNodes, section: "cluster", href: routes.nodes.href() },
   { id: "shards", label: "Shards", icon: IconShards, section: "cluster", href: routes.shards.href() },
-  { id: "executions", label: "Executions", icon: IconExecutions, section: "workflows" },
-  { id: "activities", label: "Activities", icon: IconActivities, section: "workflows" },
-  { id: "definitions", label: "Definitions", icon: IconDefinitions, section: "workflows" },
+  { id: "executions", label: "Executions", icon: IconExecutions, section: "workflows", href: routes.executions.href() },
   { id: "schedules", label: "Schedules", icon: IconSchedules, section: "workflows" },
   { id: "alerts", label: "Alerts", icon: IconAlerts, section: "bottom" },
   { id: "settings", label: "Settings", icon: IconSettings, section: "bottom", href: routes.settings.href() }

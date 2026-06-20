@@ -76,7 +76,7 @@ export type OverviewSnapshot = {
 
 export interface OverviewReaderResult {
   stats: ReadonlyArray<{ status: string; count: number }>
-  activity: ReadonlyArray<{ bucket: string; completed: number; failed: number }>
+  activity: ReadonlyArray<{ bucket: string; bucketEpochMs: string; completed: number; failed: number }>
   shardCounts: ReadonlyArray<{ shardId: string; messageCount: number }>
   entityTypes: ReadonlyArray<{ entityType: string }>
   recentCount: number
@@ -141,30 +141,28 @@ export const buildSnapshotFromDb = (raw: OverviewReaderResult): OverviewSnapshot
   const failed = failedApp + crashed + interrupted
   const totalFailed = failed + unknown
 
-  // ── Activity chart: evenly-spaced 15-min buckets over last 24h (unchanged) ──
-  const activityMap = new Map<string, { completed: number; failed: number }>()
+  // ── Activity chart: evenly-spaced 15-min buckets over last 24h ──
+  // Use epoch-ms from SQL (bucketEpochMs) to match buckets — avoids timezone
+  // mismatch between SQL date_trunc/to_char and JS Date methods.
+  const activityMap = new Map<number, { completed: number; failed: number }>()
   for (const row of activity) {
-    activityMap.set(row.bucket, { completed: row.completed, failed: row.failed })
+    activityMap.set(Number(row.bucketEpochMs), { completed: row.completed, failed: row.failed })
   }
 
   const BUCKET_MS = 15 * 60 * 1000
   const H24_MS = 24 * 60 * 60 * 1000
-  const startMs = now.getTime() - H24_MS
+  const nowMs = now.getTime()
+  const startMs = nowMs - H24_MS
   const bucketCount = Math.floor(H24_MS / BUCKET_MS) // 96
 
   const activityPoints: Array<ActivityPoint> = []
   for (let i = 0; i < bucketCount; i++) {
     const t = startMs + i * BUCKET_MS
-    const d = new Date(t)
-    const minute = Math.floor(d.getUTCMinutes() / 15) * 15
-    const bucketKey =
-      `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${
-        String(d.getUTCDate()).padStart(2, "0")
-      } ` +
-      `${String(d.getUTCHours()).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`
-    const data = activityMap.get(bucketKey)
+    // Round t down to the nearest 15-min boundary (aligns with SQL bucketing)
+    const bucketEpoch = Math.floor(t / BUCKET_MS) * BUCKET_MS
+    const data = activityMap.get(bucketEpoch)
     activityPoints.push({
-      t,
+      t: bucketEpoch,
       completed: data?.completed ?? 0,
       failed: data?.failed ?? 0
     })
@@ -172,7 +170,6 @@ export const buildSnapshotFromDb = (raw: OverviewReaderResult): OverviewSnapshot
 
   // ── Cluster: active vs all runners ──────────────────────────────────────
   const LOCK_EXPIRY_MS = 35_000 // 35s default lock expiration
-  const nowMs = now.getTime()
 
   const activeRunnerAddresses = new Set<string>()
   for (const r of activeRunners) {

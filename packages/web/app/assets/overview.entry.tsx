@@ -1,4 +1,4 @@
-import { clientEntry, css, type EntryComponent, type Handle, on, type SerializableProps } from "remix/ui"
+import { clientEntry, css, type EntryComponent, type Handle, type SerializableProps } from "remix/ui"
 import { ActivityChart } from "../components/overview/ActivityChart.js"
 import { KpiCard } from "../components/overview/KpiCard.js"
 import { NodesPanel } from "../components/overview/NodesPanel.js"
@@ -28,10 +28,6 @@ const s = {
     padding: "2rem 2rem 3rem"
   }),
   headerRow: css({
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: "1rem",
     marginBottom: ".25rem"
   }),
   h1: css({
@@ -42,29 +38,6 @@ const s = {
     letterSpacing: "-.01em"
   }),
   muted: css({ color: tk.mutedFg, fontSize: ".85rem", margin: 0 }),
-  statusBadge: css({
-    display: "inline-flex",
-    alignItems: "center",
-    gap: ".35rem",
-    padding: ".25rem .65rem",
-    borderRadius: "999px",
-    fontSize: ".72rem",
-    fontWeight: 600,
-    fontFamily: tk.fontMono,
-    flexShrink: 0
-  }),
-  badgeLive: css({
-    color: "#22c55e",
-    background: "rgba(34,197,94,0.12)"
-  }),
-  badgeConnecting: css({
-    color: "#eab308",
-    background: "rgba(234,179,8,0.12)"
-  }),
-  badgeReconnecting: css({
-    color: "#f97316",
-    background: "rgba(249,115,22,0.12)"
-  }),
   kpiRow: css({
     display: "grid",
     gridTemplateColumns: "repeat(4, 1fr)",
@@ -100,11 +73,34 @@ const s = {
   })
 }
 
-const STATUS_DOT = {
-  connecting: { bg: "#eab308", anim: true },
-  live: { bg: "#22c55e", anim: false },
-  reconnecting: { bg: "#f97316", anim: true }
+// Connection state → topbar live-indicator presentation.
+const TOPBAR_STATE = {
+  connecting: { color: "#eab308", label: "Connecting", anim: true },
+  live: { color: "#22c55e", label: "Live", anim: false },
+  reconnecting: { color: "#f97316", label: "Reconnecting", anim: true }
 } as const
+
+const fmtClock = (): string =>
+  new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" })
+
+// Push the live SSE connection state into the global Topbar (server-rendered,
+// outside this entry's managed subtree) by updating its nodes by id.
+const syncTopbar = (state: ConnectionState) => {
+  if (typeof document === "undefined") return
+  const { anim, color, label } = TOPBAR_STATE[state]
+  const dot = document.getElementById("topbar-live-dot")
+  const labelEl = document.getElementById("topbar-live-label")
+  const timeEl = document.getElementById("topbar-live-time")
+  if (dot) {
+    dot.style.background = color
+    dot.style.animation = anim ? "pulse 1.5s ease-in-out infinite" : "none"
+  }
+  if (labelEl) {
+    labelEl.textContent = label
+    labelEl.style.color = color
+  }
+  if (timeEl) timeEl.textContent = state === "live" ? `Updated ${fmtClock()}` : ""
+}
 
 // ---------------------------------------------------------------------------
 // Number formatting
@@ -146,6 +142,7 @@ export const OverviewEntry: EntryComponent<OverviewEntryProps> = clientEntry(
       es.onopen = () => {
         connState = "live"
         reconnectAttempts = 0
+        syncTopbar(connState)
         handle.update()
       }
 
@@ -155,6 +152,7 @@ export const OverviewEntry: EntryComponent<OverviewEntryProps> = clientEntry(
           snapshot = data
           connState = "live"
           reconnectAttempts = 0
+          syncTopbar(connState)
           handle.update()
         } catch {
           // Ignore malformed messages
@@ -164,21 +162,20 @@ export const OverviewEntry: EntryComponent<OverviewEntryProps> = clientEntry(
       es.onerror = () => {
         es?.close()
         es = null
+        connState = "reconnecting"
+        syncTopbar(connState)
+        handle.update()
         if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-          connState = "reconnecting"
-          handle.update()
           const delay = Math.min(1000 * 2 ** reconnectAttempts, 30000)
           reconnectAttempts++
           reconnectTimer = setTimeout(connect, delay)
-        } else {
-          connState = "reconnecting"
-          handle.update()
         }
       }
     }
 
     // Connect on client side only (EventSource is not available during SSR)
     if (typeof EventSource !== "undefined") {
+      syncTopbar(connState)
       connect()
     }
 
@@ -190,8 +187,19 @@ export const OverviewEntry: EntryComponent<OverviewEntryProps> = clientEntry(
       if (es === null || es.readyState === EventSource.CLOSED) {
         reconnectAttempts = 0
         connState = "connecting"
+        syncTopbar(connState)
         handle.update()
         connect()
+      }
+    }
+
+    // Clicking the topbar live indicator forces a reconnect attempt.
+    if (typeof document !== "undefined") {
+      const liveEl = document.getElementById("topbar-live")
+      if (liveEl) {
+        liveEl.style.cursor = "pointer"
+        liveEl.addEventListener("click", manualReconnect)
+        handle.signal.addEventListener("abort", () => liveEl.removeEventListener("click", manualReconnect))
       }
     }
 
@@ -201,51 +209,16 @@ export const OverviewEntry: EntryComponent<OverviewEntryProps> = clientEntry(
 
     return () => {
       const { activity, cluster, nodes, shards, workflows } = snapshot
-      const dot = STATUS_DOT[connState]
-      const badgeClass = connState === "live"
-        ? s.badgeLive
-        : connState === "connecting"
-        ? s.badgeConnecting
-        : s.badgeReconnecting
-
-      const badgeLabel = connState === "live"
-        ? "● Live"
-        : connState === "connecting"
-        ? "○ Connecting"
-        : "⚠ Reconnecting"
-
       const clusterIdle = isClusterIdle()
 
       return (
         <main mix={s.container}>
-          {/* Title + status */}
+          {/* Title (live status now lives in the Topbar) */}
           <div mix={s.headerRow}>
-            <div>
-              <h1 mix={s.h1}>Cluster Overview</h1>
-              <p mix={s.muted}>
-                Monitor your Effect Cluster health, entities, and workflows.
-              </p>
-            </div>
-            <div
-              mix={[s.statusBadge, badgeClass, on("click", manualReconnect)]}
-              style={{ cursor: connState !== "live" ? "pointer" : undefined }}
-              role="status"
-              aria-live="polite"
-            >
-              {dot.anim && (
-                <span
-                  style={{
-                    width: ".35rem",
-                    height: ".35rem",
-                    borderRadius: "50%",
-                    background: dot.bg,
-                    animation: "pulse 1.5s ease-in-out infinite",
-                    flexShrink: 0
-                  }}
-                />
-              )}
-              {badgeLabel}
-            </div>
+            <h1 mix={s.h1}>Cluster Overview</h1>
+            <p mix={s.muted}>
+              Monitor your Effect Cluster health, entities, and workflows.
+            </p>
           </div>
 
           {/* ── IDLE STATE ── */}

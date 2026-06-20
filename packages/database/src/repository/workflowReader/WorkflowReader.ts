@@ -196,6 +196,34 @@ export const makeWorkflowReader = (sql: SqlClient.SqlClient) => {
       `
   })
 
+  // Build a full RunDetail from a fetched detail row. The message id is the
+  // row's own id (a Snowflake), used both as the detail id and to exclude the
+  // parent when listing sibling (child) runs sharing the trace.
+  const rowToDetail = (row: RunDetailRow): Effect.Effect<RunDetail> => {
+    const now = new Date()
+    const summary = rowToSummary(row, now)
+    const input = tryParseJson(row.messagePayload)
+    const output = row.replyKind === 0 ? tryParseJson(row.replyPayload) : null
+    const childrenEffect = row.traceId === null
+      ? Effect.succeed([] as ReadonlyArray<RunSummary>)
+      : getChildRuns(row.traceId as TraceId, summary.id)
+    return Effect.map(childrenEffect, (children) =>
+      new RunDetail({
+        id: summary.id,
+        workflowName: summary.workflowName,
+        runId: summary.runId,
+        shardId: summary.shardId,
+        traceId: summary.traceId,
+        startedAt: summary.startedAt,
+        durationMs: summary.durationMs,
+        status: summary.status,
+        replyId: row.lastReplyId,
+        input,
+        output,
+        children
+      }))
+  }
+
   const getRun = (messageId: MessageId): Effect.Effect<RunDetail, RunNotFound> => {
     const parsedId = safeBigInt(messageId)
     const inner = parsedId === null
@@ -208,29 +236,7 @@ export const makeWorkflowReader = (sql: SqlClient.SqlClient) => {
             ? Effect.fail(new RunNotFound({ runId: messageId }))
             : Effect.succeed(opt.value)
         ),
-        Effect.flatMap((row) => {
-          const now = new Date()
-          const summary = rowToSummary(row, now)
-          const input = tryParseJson(row.messagePayload)
-          const output = row.replyKind === 0 ? tryParseJson(row.replyPayload) : null
-          const childrenEffect = row.traceId === null
-            ? Effect.succeed([] as ReadonlyArray<RunSummary>)
-            : getChildRuns(row.traceId as TraceId, messageId)
-          return Effect.map(childrenEffect, (children) =>
-            new RunDetail({
-              id: summary.id,
-              workflowName: summary.workflowName,
-              runId: summary.runId,
-              shardId: summary.shardId,
-              traceId: summary.traceId,
-              startedAt: summary.startedAt,
-              durationMs: summary.durationMs,
-              status: summary.status,
-              input,
-              output,
-              children
-            }))
-        })
+        Effect.flatMap(rowToDetail)
       )
     return pipe(
       inner,
@@ -238,9 +244,53 @@ export const makeWorkflowReader = (sql: SqlClient.SqlClient) => {
     )
   }
 
+  // Look up a run by its executionId (entity_id). entity_id is unique per
+  // workflow execution; ORDER BY id DESC LIMIT 1 is a defensive tie-break.
+  const getRunByExecutionIdSchema = SqlSchema.findOne({
+    Request: Schema.String,
+    Result: RunDetailRow,
+    execute: (executionId) =>
+      sql`
+        SELECT
+          m.id,
+          m.entity_type,
+          m.entity_id,
+          m.shard_id,
+          m.trace_id,
+          m.processed,
+          m.last_read,
+          m.last_reply_id,
+          m.payload AS message_payload,
+          m.headers,
+          r.kind AS reply_kind,
+          r.payload AS reply_payload
+        FROM cluster_messages m
+        LEFT JOIN cluster_replies r ON r.id = m.last_reply_id
+        WHERE m.entity_type LIKE 'Workflow/%'
+          AND m.kind = 0
+          AND m.entity_id = ${executionId}
+        ORDER BY m.id DESC
+        LIMIT 1
+      `
+  })
+
+  const getRunByExecutionId = (executionId: string): Effect.Effect<RunDetail, RunNotFound> =>
+    pipe(
+      getRunByExecutionIdSchema(executionId),
+      Effect.orDie,
+      Effect.flatMap((opt) =>
+        Option.isNone(opt)
+          ? Effect.fail(new RunNotFound({ runId: executionId }))
+          : Effect.succeed(opt.value)
+      ),
+      Effect.flatMap(rowToDetail),
+      Effect.withSpan("WorkflowReader.getRunByExecutionId", { attributes: { executionId } })
+    )
+
   return {
     listRuns,
     getRun,
+    getRunByExecutionId,
     getChildRuns
   } as const
 }

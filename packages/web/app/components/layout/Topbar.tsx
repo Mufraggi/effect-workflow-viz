@@ -223,12 +223,17 @@ export function Topbar(
         <div mix={s.right}>
           {currentEnvName && <span mix={s.badge}>{currentEnvName}</span>}
 
-          <span mix={[s.liveIndicator, !isLive ? s.liveIndicatorOff : null]}>
-            <span mix={[s.liveDot, !isLive ? s.liveDotOff : null]} />
-            {isLive ? "Live" : "Offline"}
+          {
+            /* Live status — server renders the env-based default; on the
+              Overview page the client entry updates these nodes by id to
+              reflect the real SSE connection state. */
+          }
+          <span id="topbar-live" mix={[s.liveIndicator, !isLive ? s.liveIndicatorOff : null]}>
+            <span id="topbar-live-dot" mix={[s.liveDot, !isLive ? s.liveDotOff : null]} />
+            <span id="topbar-live-label">{isLive ? "Live" : "Offline"}</span>
           </span>
 
-          {isLive && <span mix={s.updateTime}>Updated {time}</span>}
+          <span id="topbar-live-time" mix={s.updateTime}>{isLive ? `Updated ${time}` : ""}</span>
 
           <button mix={s.iconBtn} title="Refresh" aria-label="Refresh">
             <IconRefresh />

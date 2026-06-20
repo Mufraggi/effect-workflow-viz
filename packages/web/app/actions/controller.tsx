@@ -30,7 +30,10 @@ import { routes } from "../routes.js"
 import { buildSnapshotFromDb } from "../types/overview.js"
 import { buildFilterQuery, type RunsFilters } from "../utils/runs.js"
 import { ChartPage } from "./chart-page.js"
+import { ExecutionDetailPage } from "./execution-detail-page.js"
+import { ExecutionsPage } from "./executions-page.js"
 import { LoginPage } from "./login-page.js"
+import { NodesPage } from "./nodes-page.js"
 import { OverviewPage } from "./overview-page.js"
 import { RunDetailPage } from "./run-detail-page.js"
 import { RunsPage } from "./runs-page.js"
@@ -235,6 +238,20 @@ const loadRunDetailWithEnv = (
     })
   )
 
+const loadExecutionDetailWithEnv = (
+  envId: string,
+  executionId: string
+) =>
+  runtime.runPromiseExit(
+    Effect.gen(function*() {
+      const db = yield* DbManager
+      const pg = yield* db.getClient(envId)
+      const reader = makeWorkflowReader(pg)
+      const run = yield* reader.getRunByExecutionId(executionId)
+      return { _tag: "ok" as const, run }
+    })
+  )
+
 const loadChildrenWithEnv = (
   envId: string,
   messageId: MessageId
@@ -267,6 +284,37 @@ const loadOverviewSnapshot = (envId: string) =>
       const reader = makeOverviewReader(pg)
       const raw = yield* reader.buildSnapshot()
       return buildSnapshotFromDb(raw)
+    })
+  )
+
+// ── Executions loader — list all runs without pagination ──────────────
+
+const encodeRunsFlat = Schema.encodeSync(Schema.Array(RunSummary))
+
+// PageRequest caps a single page at 200, so page through (passing `before`)
+// up to EXECUTIONS_MAX, mirroring loadChartRunsWithEnv.
+const EXECUTIONS_MAX = 1000
+const EXECUTIONS_PAGE = 200
+
+const loadExecutionsWithEnv = (envId: string) =>
+  runtime.runPromise(
+    Effect.gen(function*() {
+      const db = yield* DbManager
+      const pg = yield* db.getClient(envId)
+      const reader = makeWorkflowReader(pg)
+      const items: Array<RunSummary> = []
+      let before: string | null = null
+      while (items.length < EXECUTIONS_MAX) {
+        const limit = Math.min(EXECUTIONS_PAGE, EXECUTIONS_MAX - items.length)
+        const page: { items: ReadonlyArray<RunSummary>; nextCursor: string | null } = yield* reader.listRuns(
+          {},
+          new PageRequest({ limit, before })
+        )
+        for (const item of page.items) items.push(item)
+        before = page.nextCursor
+        if (before === null || page.items.length === 0) break
+      }
+      return encodeRunsFlat(items)
     })
   )
 
@@ -849,6 +897,99 @@ export default createController(routes, {
             initialSnapshot={initialSnapshot}
             environments={environments}
             activeEnvId={envId ?? null}
+            currentPath={currentPath}
+          />
+        )
+      }
+    },
+
+    // GET /nodes — Dedicated nodes page (runner status, shards per node).
+    nodes: {
+      middleware: protect,
+      async handler({ render, session, url }) {
+        const envId = session?.get?.("envId") as string | undefined
+        const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
+          id: e.id,
+          name: e.name,
+          isDefault: e.isDefault
+        }))
+
+        let initialSnapshot = null
+        if (envId) {
+          try {
+            initialSnapshot = await loadOverviewSnapshot(envId)
+          } catch {
+            // Initial load failed
+          }
+        }
+
+        const currentPath = url.pathname + url.search
+        return render(
+          <NodesPage
+            initialSnapshot={initialSnapshot}
+            environments={environments}
+            activeEnvId={envId ?? null}
+            currentPath={currentPath}
+          />
+        )
+      }
+    },
+
+    // GET /executions — Read-only workflow executions list.
+    executions: {
+      middleware: protect,
+      async handler({ render, session, url }) {
+        const envId = session?.get?.("envId") as string | undefined
+        const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
+          id: e.id,
+          name: e.name,
+          isDefault: e.isDefault
+        }))
+
+        let executions = null
+        if (envId) {
+          try {
+            executions = await loadExecutionsWithEnv(envId)
+          } catch {
+            // Load failed
+          }
+        }
+
+        const currentPath = url.pathname + url.search
+        return render(
+          <ExecutionsPage
+            executions={executions}
+            environments={environments}
+            activeEnvId={envId ?? null}
+            currentPath={currentPath}
+          />
+        )
+      }
+    },
+
+    // GET /executions/:executionId — read-only detail for one execution.
+    executionShow: {
+      middleware: protect,
+      async handler({ params, render, session, url }) {
+        const envId = session?.get?.("envId") as string | undefined
+        if (!envId) return new Response("No environment selected", { status: 404 })
+
+        const result = await loadExecutionDetailWithEnv(envId, params.executionId)
+        const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
+          id: e.id,
+          name: e.name,
+          isDefault: e.isDefault
+        }))
+        const currentPath = url.pathname + url.search
+
+        if (result._tag === "Failure") {
+          return new Response("Execution not found", { status: 404 })
+        }
+        return render(
+          <ExecutionDetailPage
+            run={encodeRunDetail(result.value.run)}
+            environments={environments}
+            activeEnvId={envId}
             currentPath={currentPath}
           />
         )

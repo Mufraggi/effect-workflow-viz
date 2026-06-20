@@ -13,6 +13,7 @@ export const WorkflowStatsResult = Schema.Struct({
 
 export const ActivityRow = Schema.Struct({
   bucket: Schema.String,
+  bucketEpochMs: Schema.String,
   completed: Schema.Number,
   failed: Schema.Number
 })
@@ -70,10 +71,10 @@ export const makeOverviewReader = (sql: SqlClient.SqlClient) => {
           WHEN r.kind IS DISTINCT FROM 0 THEN 'unknown'
           ELSE COALESCE(
             CASE
-              WHEN r.payload LIKE '%"Success"%' THEN 'success'
-              WHEN r.payload LIKE '%"Fail"%' THEN 'failed_app'
-              WHEN r.payload LIKE '%"Die"%' THEN 'crashed'
-              WHEN r.payload LIKE '%"Interrupt"%' THEN 'interrupted'
+              WHEN r.payload LIKE '%"exit":{"_tag":"Success"%' THEN 'success'
+              WHEN r.payload LIKE '%"exit":{"_tag":"Failure"%' AND r.payload LIKE '%"_tag":"Fail",%' THEN 'failed_app'
+              WHEN r.payload LIKE '%"exit":{"_tag":"Failure"%' AND r.payload LIKE '%"_tag":"Die",%' THEN 'crashed'
+              WHEN r.payload LIKE '%"exit":{"_tag":"Failure"%' AND r.payload LIKE '%"_tag":"Interrupt",%' THEN 'interrupted'
               ELSE 'unknown'
             END,
             'unknown'
@@ -112,14 +113,16 @@ export const makeOverviewReader = (sql: SqlClient.SqlClient) => {
       )
       SELECT
         to_char(bucket, 'YYYY-MM-DD HH24:MI:SS') AS bucket,
-        COUNT(*) FILTER (WHERE payload LIKE '%"Success"%')::int AS completed,
-        COUNT(*) FILTER (
-          WHERE payload IS NOT NULL
-            AND payload NOT LIKE '%"Success"%'
-            AND payload NOT LIKE '"Success"'
-        )::int AS failed
+        (EXTRACT(EPOCH FROM bucket) * 1000)::bigint AS bucket_epoch_ms,
+        COUNT(*) FILTER (WHERE payload LIKE '%"exit":{"_tag":"Success"%')::int AS completed,
+        -- "failed" = any terminal reply that isn't a Success: workflow-exit
+        -- Failures AND cluster-level failures (Die/Interrupt, e.g. "entity type
+        -- not registered") that lack an "exit" wrapper. Mirrors the stats card,
+        -- where failedToday = failed + unknown. payload IS NULL means the message
+        -- has no reply yet (still running) and must not count as failed.
+        COUNT(*) FILTER (WHERE payload IS NOT NULL AND payload NOT LIKE '%"exit":{"_tag":"Success"%')::int AS failed
       FROM buckets
-      GROUP BY bucket
+      GROUP BY bucket, bucket_epoch_ms
       ORDER BY bucket ASC
     `
   })
