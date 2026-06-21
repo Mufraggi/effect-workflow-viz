@@ -13,6 +13,14 @@ export * as EnvReader from "./EnvReader.js"
 export * as McpServer from "./McpServer.js"
 
 /**
+ * Configurable sliding-window rate limiter keyed by IP address.
+ *
+ * Thread-safe: uses an Effect `Ref` to hold the state so concurrent accesses
+ * are serialised inside Effect's runtime.
+ */
+export * as RateLimiter from "./RateLimiter.js"
+
+/**
  * HTTP middleware that validates `Authorization: Bearer <key>` against the
  * `ApiKeyRepository`, while also:
  * - Rate-limiting per IP (100 req / 60s sliding window)
@@ -21,14 +29,6 @@ export * as McpServer from "./McpServer.js"
  * - Logging every request with method, path, IP, key prefix, and duration.
  */
 export * as auth from "./auth.js"
-
-/**
- * Configurable sliding-window rate limiter keyed by IP address.
- *
- * Thread-safe: uses an Effect `Ref` to hold the state so concurrent accesses
- * are serialised inside Effect's runtime.
- */
-export * as RateLimiter from "./RateLimiter.js"
 
 /**
  * MCP server entry point — standalone mode.
