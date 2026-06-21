@@ -126,11 +126,8 @@ export class ApiKeyRepository extends Effect.Service<ApiKeyRepository>()("ApiKey
      */
     const revoke = (id: string): Effect.Effect<void, ApiKeyNotFound> =>
       Effect.gen(function*() {
-        const exists =
-          (yield* sql`SELECT 1 AS exists FROM api_keys WHERE id = ${id} LIMIT 1`) as unknown as ReadonlyArray<
-            { readonly exists: number }
-          >
-        if (exists.length === 0 || exists[0]?.exists !== 1) {
+        const found: ReadonlyArray<any> = yield* sql`SELECT 1 AS present FROM api_keys WHERE id = ${id} LIMIT 1`
+        if (found.length === 0) {
           return yield* Effect.fail(new ApiKeyNotFound({ id }))
         }
         yield* sql`UPDATE api_keys SET is_revoked = 1 WHERE id = ${id}`

@@ -704,10 +704,12 @@ export default createController(routes, {
                 return yield* repo.create({ userId: currentUser.id, name })
               })
             )
-            // Put the raw key in flash so the user can copy it once
+            // Put the raw key in flash so the user can copy it once,
+            // then redirect to the API Keys tab where the flash is displayed.
             context.session.flash("createdKey", result.rawKey)
             context.session.flash("createdKeyName", result.name)
-            return flashTo("success", `API key "${result.name}" created. Copy it now — you won't see it again.`)
+            context.session.flash("success", `API key "${result.name}" created. Copy it now — you won't see it again.`)
+            return redirect("/settings?tab=api-keys", 303)
           }
 
           if (intent === "revoke-key") {
@@ -719,7 +721,8 @@ export default createController(routes, {
                 return yield* repo.revoke(keyId)
               }).pipe(Effect.catchTag("ApiKeyNotFound", () => Effect.void))
             )
-            return flashTo("success", "API key revoked.")
+            context.session.flash("success", "API key revoked.")
+            return redirect("/settings?tab=api-keys", 303)
           }
 
           // intent === "create"

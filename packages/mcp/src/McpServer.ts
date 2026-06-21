@@ -73,6 +73,30 @@ export const WorkflowTypesResource = McpServer.resource`cluster://${envIdParam}/
 })
 
 // ---------------------------------------------------------------------------
+// Resource: list of configured environments
+// ---------------------------------------------------------------------------
+
+/** `cluster://environments` — List all configured database environments */
+export const EnvironmentsResource = McpServer.resource({
+  uri: "cluster://environments",
+  name: "cluster-environments",
+  description: "List all configured environments (id, name, host, port) so clients can discover valid envId values",
+  mimeType: "application/json",
+  content: Effect.gen(function*() {
+    const env = yield* EnvReader
+    const configs = yield* env.list
+    return JSON.stringify(configs.map((c) => ({
+      id: c.id,
+      name: c.name,
+      host: c.host,
+      port: c.port,
+      dbName: c.dbName,
+      isDefault: c.isDefault
+    })))
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Response schemas for tools
 // ---------------------------------------------------------------------------
 
@@ -107,6 +131,26 @@ const getExecutionChildrenParams = Schema.Struct({
 // ---------------------------------------------------------------------------
 // Tools
 // ---------------------------------------------------------------------------
+
+/**
+ * list_environments — List configured database environments.
+ */
+const listEnvironmentsParams = Schema.Struct({})
+const listEnvironmentsTool = Tool.make("list_environments", {
+  description: "List all configured environments (id, name, host, port) so you can discover valid envId values for other tools and resources",
+  parameters: listEnvironmentsParams.fields,
+  success: Schema.Array(Schema.Struct({
+    id: Schema.String,
+    name: Schema.String,
+    host: Schema.String,
+    port: Schema.String,
+    dbName: Schema.String,
+    isDefault: Schema.Boolean
+  })),
+  failure: Schema.String,
+  failureMode: "return" as const,
+  dependencies: [EnvReader]
+})
 
 /**
  * list_executions — List workflow executions with optional filters.
@@ -149,6 +193,7 @@ const getExecutionChildrenTool = Tool.make("get_execution_children", {
 // ---------------------------------------------------------------------------
 
 export const ClusterTools = Toolkit.make(
+  listEnvironmentsTool,
   listExecutionsTool,
   getExecutionTool,
   getExecutionChildrenTool
@@ -159,6 +204,23 @@ export const ClusterTools = Toolkit.make(
 // ---------------------------------------------------------------------------
 
 export const ClusterToolsLayer = ClusterTools.toLayer({
+  list_environments: () =>
+    pipe(
+      EnvReader,
+      Effect.flatMap((env) => env.list),
+      Effect.map((configs) => configs.map((c) => ({
+        id: c.id,
+        name: c.name,
+        host: c.host,
+        port: c.port,
+        dbName: c.dbName,
+        isDefault: c.isDefault
+      }))),
+      Effect.mapError((error: unknown) => String(error))
+    ) as Effect.Effect<ReadonlyArray<{
+      id: string; name: string; host: string; port: string; dbName: string; isDefault: boolean
+    }>, string, EnvReader>,
+
   list_executions: (params) =>
     Effect.gen(function*() {
       const env = yield* EnvReader
@@ -234,5 +296,6 @@ export const McpRegistrationLayer = Layer.mergeAll(
   NodesResource,
   ShardsResource,
   WorkflowTypesResource,
+  EnvironmentsResource,
   McpServer.toolkit(ClusterTools)
 )
