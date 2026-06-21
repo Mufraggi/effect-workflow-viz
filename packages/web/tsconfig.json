@@ -25,7 +25,9 @@
       "@template/api": ["../api/src/index.ts"],
       "@template/api/*": ["../api/src/*.ts"],
       "@template/environments": ["../environments/src/index.ts"],
-      "@template/environments/*": ["../environments/src/*.ts"]
+      "@template/environments/*": ["../environments/src/*.ts"],
+      "@template/mcp": ["../mcp/src/index.ts"],
+      "@template/mcp/*": ["../mcp/src/*.ts"]
     }
   },
   "include": ["app", "server.ts"],

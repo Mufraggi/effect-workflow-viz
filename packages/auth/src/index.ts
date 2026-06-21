@@ -1,4 +1,12 @@
 /**
+ * Manage API keys for programmatic access (MCP).
+ *
+ * Keys are stored hashed (Argon2id). The raw key is revealed once at creation,
+ * matching the password pattern in `AuthRepository`.
+ */
+export * as ApiKeyRepository from "./ApiKeyRepository.js"
+
+/**
  * The auth repository. Mirrors the `WorkflowReader` service pattern but over the
  * writable SQLite layer. The `users` table is created idempotently on first use
  * (single table — no migration runner needed for v1).

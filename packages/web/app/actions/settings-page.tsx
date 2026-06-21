@@ -30,6 +30,15 @@ export interface EnvironmentEntry {
   isDefault: boolean
 }
 
+export interface ApiKeyEntry {
+  id: string
+  name: string
+  keyPrefix: string
+  createdAt: string
+  lastUsedAt: string | null
+  expiresAt: string | null
+}
+
 export interface SettingsPageProps {
   email: string
   role: string
@@ -37,7 +46,10 @@ export interface SettingsPageProps {
   users: ReadonlyArray<SettingsUser>
   activity: ReadonlyArray<ActivityEntry>
   environments: ReadonlyArray<EnvironmentEntry>
+  apiKeys: ReadonlyArray<ApiKeyEntry>
   activeEnvId: string | null
+  createdKey?: string
+  createdKeyName?: string
   tab: string
   error: string | null
   success: string | null
@@ -204,7 +216,21 @@ const s = {
 
 export function SettingsPage(handle: Handle<SettingsPageProps>) {
   return () => {
-    const { activeEnvId, activity, email, environments, error, isAdmin, role, success, tab, users } = handle.props
+    const {
+      activeEnvId,
+      activity,
+      apiKeys,
+      createdKey,
+      createdKeyName,
+      email,
+      environments,
+      error,
+      isAdmin,
+      role,
+      success,
+      tab,
+      users
+    } = handle.props
     const envInfo = environments.map((e) => ({ id: e.id, name: e.name, isDefault: e.isDefault }))
 
     const tabLink = (id: string, label: string) => (
@@ -230,6 +256,7 @@ export function SettingsPage(handle: Handle<SettingsPageProps>) {
             {tabLink("account", "Account")}
             {isAdmin && tabLink("users", "Users")}
             {isAdmin && tabLink("environments", "Environments")}
+            {tabLink("api-keys", "API Keys")}
             {isAdmin && tabLink("activity", "Activity")}
           </nav>
 
@@ -393,6 +420,57 @@ export function SettingsPage(handle: Handle<SettingsPageProps>) {
           )}
 
           {/* ── Activity tab (admin only) ── */}
+          {/* ── API Keys tab ── */}
+          {tab === "api-keys" && (
+            <div mix={s.card}>
+              <h2 mix={s.cardTitle}>API Keys</h2>
+              <p mix={s.emptyText} style={{ marginBottom: ".75rem" }}>
+                API keys allow programmatic access to the Effect Cluster via the MCP endpoint (port 3100). Keys are
+                shown once at creation.
+              </p>
+
+              {apiKeys.length === 0 && <p mix={s.emptyText}>No API keys yet.</p>}
+
+              {apiKeys.map((k) => (
+                <div mix={s.userRow}>
+                  <span mix={s.userEmail}>{k.name}</span>
+                  <code mix={s.val} style={{ fontFamily: tk.fontMono, fontSize: ".82rem" }}>{k.keyPrefix}...</code>
+                  <span mix={s.key}>created {k.createdAt}</span>
+                  <span mix={s.key}>{k.lastUsedAt ? `last used ${k.lastUsedAt}` : "never used"}</span>
+                  <form method="post" action={routes.settings.href()}>
+                    <input type="hidden" name="keyId" value={k.id} />
+                    <button mix={[s.btnSm, s.btnDanger]} type="submit" name="intent" value="revoke-key">Revoke</button>
+                  </form>
+                </div>
+              ))}
+
+              {createdKey && (
+                <div mix={s.ok} style={{ margin: "1rem 0", wordBreak: "break-all" }}>
+                  <strong>{createdKeyName ?? "Key"}:</strong> {createdKey}
+                </div>
+              )}
+
+              <h3 mix={s.createTitle}>Create new key</h3>
+              <form mix={s.form} method="post" action={routes.settings.href()}>
+                <div mix={s.field}>
+                  <span mix={s.lbl}>Name</span>
+                  <input
+                    mix={s.input}
+                    type="text"
+                    name="name"
+                    placeholder="CI/CD"
+                    maxlength={100}
+                    minlength={1}
+                    required
+                  />
+                </div>
+                <button mix={[a.btn, a.btnPrimary]} type="submit" name="intent" value="create-key">
+                  Create key
+                </button>
+              </form>
+            </div>
+          )}
+
           {tab === "activity" && isAdmin && (
             <div mix={s.card}>
               <h2 mix={s.cardTitle}>Recent activity</h2>

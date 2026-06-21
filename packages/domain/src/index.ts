@@ -2,6 +2,18 @@ export * as Pagination from "./Pagination.js"
 
 export * as UserId from "./UserId.js"
 
+/**
+ * An API key for programmatic access (e.g. MCP).
+ *
+ * The `keyPrefix` is the first 8 chars of the raw key, stored so the UI can
+ * display a recognisable label without ever showing the full key again.
+ *
+ * The `keyHash` carries the Argon2id hash of the raw key.
+ */
+export * as ApiKey from "./auth/ApiKey.js"
+
+export * as ApiKeyErrors from "./auth/ApiKeyErrors.js"
+
 export * as AuthErrors from "./auth/AuthErrors.js"
 
 export * as AuthEvent from "./auth/AuthEvent.js"

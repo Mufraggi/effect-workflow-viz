@@ -13,6 +13,12 @@ export * as rowSchemas from "./model/rowSchemas.js"
 
 export * as OverviewReader from "./repository/overviewReader/OverviewReader.js"
 
+/**
+ * Assemble an OverviewSnapshot from raw OverviewReader query results.
+ * Only fields backed by real SQL columns are populated.
+ */
+export * as snapshot from "./repository/overviewReader/snapshot.js"
+
 export * as WorkflowReader from "./repository/workflowReader/WorkflowReader.js"
 
 export * as helpers from "./repository/workflowReader/helpers.js"

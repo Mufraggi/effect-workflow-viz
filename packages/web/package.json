@@ -11,6 +11,9 @@
     "check": "tsc --noEmit"
   },
   "dependencies": {
+    "@effect/ai": "^0.36.0",
+    "@effect/platform": "latest",
+    "@effect/platform-node": "latest",
     "@effect/sql": "latest",
     "@effect/sql-pg": "latest",
     "@template/api": "workspace:^",
@@ -18,6 +21,7 @@
     "@template/database": "workspace:^",
     "@template/domain": "workspace:^",
     "@template/environments": "workspace:^",
+    "@template/mcp": "workspace:^",
     "chart.js": "^4.5.1",
     "effect": "3.21.3",
     "pg": "^8.16.3",
