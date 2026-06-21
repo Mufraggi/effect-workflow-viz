@@ -1,3 +1,4 @@
+import { ApiKeyRepository } from "@template/auth/ApiKeyRepository"
 import { AuthRepository } from "@template/auth/AuthRepository"
 import { hashPassword } from "@template/auth/password"
 import { makeOverviewReader } from "@template/database/repository/overviewReader/OverviewReader"
@@ -690,6 +691,37 @@ export default createController(routes, {
             return flashTo("success", "Environment deleted.")
           }
 
+          // ── API key management ──
+
+          if (intent === "create-key") {
+            const name = String(form?.get("name") ?? "").trim()
+            if (name.length < 1 || name.length > 100) {
+              return flashTo("error", "Enter a name between 1 and 100 characters.")
+            }
+            const result = await runtime.runPromise(
+              Effect.gen(function*() {
+                const repo = yield* ApiKeyRepository
+                return yield* repo.create({ userId: currentUser.id, name })
+              })
+            )
+            // Put the raw key in flash so the user can copy it once
+            context.session.flash("createdKey", result.rawKey)
+            context.session.flash("createdKeyName", result.name)
+            return flashTo("success", `API key "${result.name}" created. Copy it now — you won't see it again.`)
+          }
+
+          if (intent === "revoke-key") {
+            const keyId = String(form?.get("keyId") ?? "")
+            if (!keyId) return flashTo("error", "Missing key id.")
+            await runtime.runPromise(
+              Effect.gen(function*() {
+                const repo = yield* ApiKeyRepository
+                return yield* repo.revoke(keyId)
+              }).pipe(Effect.catchTag("ApiKeyNotFound", () => Effect.void))
+            )
+            return flashTo("success", "API key revoked.")
+          }
+
           // intent === "create"
           const parsed = s.parseSafe(createUserSchema, form)
           if (!parsed.success) {
@@ -732,6 +764,12 @@ export default createController(routes, {
         const environments = isAdmin
           ? await runWithEnvs((r) => r.list)
           : []
+        const apiKeys = await runtime.runPromise(
+          Effect.gen(function*() {
+            const repo = yield* ApiKeyRepository
+            return yield* repo.listForUser(currentUser.id)
+          })
+        )
         const error = context.session.get("error") as string | undefined
         const success = context.session.get("success") as string | undefined
         return context.render(
@@ -766,6 +804,16 @@ export default createController(routes, {
             tab={context.url.searchParams.get("tab") || "account"}
             error={error ?? null}
             success={success ?? null}
+            apiKeys={apiKeys.map((k) => ({
+              id: k.id,
+              name: k.name,
+              keyPrefix: k.keyPrefix,
+              createdAt: fmtAt(k.createdAt),
+              lastUsedAt: k.lastUsedAt !== null ? fmtAt(k.lastUsedAt) : null,
+              expiresAt: k.expiresAt !== null ? fmtAt(k.expiresAt) : null
+            }))}
+            createdKey={context.session.get("createdKey") as string | undefined}
+            createdKeyName={context.session.get("createdKeyName") as string | undefined}
           />
         )
       }

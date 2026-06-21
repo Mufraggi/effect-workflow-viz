@@ -1,3 +1,4 @@
+import { ApiKeyRepository } from "@template/auth/ApiKeyRepository"
 import { AuthRepository } from "@template/auth/AuthRepository"
 import { DbManager } from "@template/environments/DbManager"
 import { EnvironmentRepository } from "@template/environments/EnvironmentRepository"
@@ -16,6 +17,7 @@ import { Layer, ManagedRuntime } from "effect"
  */
 const AppLayer = Layer.mergeAll(
   AuthRepository.Default,
+  ApiKeyRepository.Default,
   EnvironmentRepository.Default,
   DbManager.Default
 )

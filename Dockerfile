@@ -23,6 +23,7 @@ COPY packages/api/package.json       packages/api/package.json
 COPY packages/auth/package.json      packages/auth/package.json
 COPY packages/database/package.json  packages/database/package.json
 COPY packages/domain/package.json    packages/domain/package.json
+COPY packages/mcp/package.json       packages/mcp/package.json
 COPY packages/web/package.json       packages/web/package.json
 # Trim the workspace config for the image build: keep the package globs and the
 # native-build allowlist, but drop `supportedArchitectures` — the committed
@@ -57,7 +58,7 @@ ENV AUTH_DB_PATH=/app/data/auth.db
 # plus the source. Chowned so nonroot can read it and write /app/data.
 COPY --from=builder --chown=65532:65532 /app /app
 
-EXPOSE 3000
+EXPOSE 3000 3100
 VOLUME ["/app/data"]
 
 # tsx resolves the workspace's tsconfig `paths`, so the process must run from the

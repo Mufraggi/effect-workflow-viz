@@ -1,5 +1,6 @@
 packages:
   - packages/*
+  - packages/mcp
 
 # Native module: allow better-sqlite3 (backs @effect/sql-sqlite-node for the auth
 # DB) to run its install/build script so its native binary is available.
