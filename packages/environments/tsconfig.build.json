@@ -1,6 +1,7 @@
 {
   "extends": "./tsconfig.src.json",
   "references": [
+    { "path": "../database/tsconfig.build.json" },
     { "path": "../auth/tsconfig.build.json" }
   ],
   "compilerOptions": {
