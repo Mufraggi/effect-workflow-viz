@@ -137,7 +137,8 @@ const getExecutionChildrenParams = Schema.Struct({
  */
 const listEnvironmentsParams = Schema.Struct({})
 const listEnvironmentsTool = Tool.make("list_environments", {
-  description: "List all configured environments (id, name, host, port) so you can discover valid envId values for other tools and resources",
+  description:
+    "List all configured environments (id, name, host, port) so you can discover valid envId values for other tools and resources",
   parameters: listEnvironmentsParams.fields,
   success: Schema.Array(Schema.Struct({
     id: Schema.String,
@@ -208,18 +209,29 @@ export const ClusterToolsLayer = ClusterTools.toLayer({
     pipe(
       EnvReader,
       Effect.flatMap((env) => env.list),
-      Effect.map((configs) => configs.map((c) => ({
-        id: c.id,
-        name: c.name,
-        host: c.host,
-        port: c.port,
-        dbName: c.dbName,
-        isDefault: c.isDefault
-      }))),
+      Effect.map((configs) =>
+        configs.map((c) => ({
+          id: c.id,
+          name: c.name,
+          host: c.host,
+          port: c.port,
+          dbName: c.dbName,
+          isDefault: c.isDefault
+        }))
+      ),
       Effect.mapError((error: unknown) => String(error))
-    ) as Effect.Effect<ReadonlyArray<{
-      id: string; name: string; host: string; port: string; dbName: string; isDefault: boolean
-    }>, string, EnvReader>,
+    ) as Effect.Effect<
+      ReadonlyArray<{
+        id: string
+        name: string
+        host: string
+        port: string
+        dbName: string
+        isDefault: boolean
+      }>,
+      string,
+      EnvReader
+    >,
 
   list_executions: (params) =>
     Effect.gen(function*() {
