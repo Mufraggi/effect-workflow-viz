@@ -1,14 +1,14 @@
 /**
- * Thin helper that resolves an `envId` string to a ready-to-use
+ * Thin helper that resolves an environment name or UUID to a ready-to-use
  * `WorkflowReader` or `OverviewReader` via `DbManager`.
  *
- * Both reader factories agree with the pattern used in the Remix loaders
- * (see packages/web/app/actions/controller.tsx).
+ * Accepts either the environment name (e.g. `"local"`, `"production"`) or
+ * its UUID — whichever is more convenient for the caller.
  */
 export * as EnvReader from "./EnvReader.js"
 
 /**
- * list_executions — List workflow executions with optional filters.
+ * list_environments — List configured database environments.
  */
 export * as McpServer from "./McpServer.js"
 
