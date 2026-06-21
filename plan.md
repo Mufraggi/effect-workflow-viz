@@ -1,7 +1,7 @@
 # Implementation Plan
-
+  
 ## Goal
-Expose a read-only MCP server (HTTP/SSE) over the observed Effect Cluster, reusing the existing `WorkflowReader` and `OverviewReader` factories and the same `Schema.Struct` outputs that the Remix loaders use.
+Expose  a read-only MCP server (HTTP/SSE) over the observed Effect Cluster, reusing the existing `WorkflowReader` and `OverviewReader` factories and the same `Schema.Struct` outputs that the Remix loaders use.
 
 ---
 
