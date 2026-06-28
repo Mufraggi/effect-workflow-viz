@@ -22,6 +22,7 @@ COPY pnpm-lock.yaml package.json ./
 COPY packages/api/package.json       packages/api/package.json
 COPY packages/auth/package.json      packages/auth/package.json
 COPY packages/database/package.json  packages/database/package.json
+COPY packages/environments/package.json packages/environments/package.json
 COPY packages/domain/package.json    packages/domain/package.json
 COPY packages/mcp/package.json       packages/mcp/package.json
 COPY packages/web/package.json       packages/web/package.json
