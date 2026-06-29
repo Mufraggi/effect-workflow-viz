@@ -67,7 +67,8 @@ const s = {
  */
 export function AppLayout(handle: Handle<AppLayoutProps>) {
   return () => {
-    const { activeEnvId, activeNav, children, currentPath, currentUserRole, environments, title = "Workflow Viz" } = handle.props
+    const { activeEnvId, activeNav, children, currentPath, currentUserRole, environments, title = "Workflow Viz" } =
+      handle.props
 
     const currentEnv = (environments ?? []).find((e) => e.id === activeEnvId)
     const isLive = currentEnv !== undefined

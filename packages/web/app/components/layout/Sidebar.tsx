@@ -1,8 +1,8 @@
 import type { Role } from "@template/domain/auth/Role"
 import { css, type Handle, type RemixNode } from "remix/ui"
+import { canView } from "../../auth/ClusterPolicies.js"
 import { routes } from "../../routes.js"
 import { tk } from "../../ui/tokens.js"
-import { canView } from "../../auth/ClusterPolicies.js"
 
 // ---------------------------------------------------------------------------
 // Inline SVG wrapper
@@ -365,7 +365,8 @@ export function Sidebar(
   return () => {
     // UI only — backend is authoritative. Navigation items are hidden by role
     // as a convenience, but every guarded handler enforces via authorize().
-    const { activeEnvId = null, activeItem, currentPath = "/", currentUserRole = null, environments = [] } = handle.props
+    const { activeEnvId = null, activeItem, currentPath = "/", currentUserRole = null, environments = [] } =
+      handle.props
 
     const currentEnv = environments.find((e) => e.id === activeEnvId)
     const hasEnvs = environments.length > 0
@@ -375,10 +376,10 @@ export function Sidebar(
     // Filter nav items based on the current user's role.
     const NAV_ITEMS_VISIBLE = currentUserRole !== null
       ? NAV_ITEMS.filter((item) => {
-          const mapping = navItemPolicy[item.id]
-          if (!mapping) return true // items like schedules/alerts are unfiltered
-          return canView(currentUserRole, mapping.entity, mapping.action)
-        })
+        const mapping = navItemPolicy[item.id]
+        if (!mapping) return true // items like schedules/alerts are unfiltered
+        return canView(currentUserRole, mapping.entity, mapping.action)
+      })
       : NAV_ITEMS
 
     const renderNavItem = (item: NavItem) => {

@@ -1,6 +1,6 @@
+import { Forbidden as ForbiddenCls } from "@template/domain/auth/Forbidden"
 import { Effect } from "effect"
 import { describe, expect, it } from "vitest"
-import { Forbidden as ForbiddenCls } from "../../../domain/src/auth/Forbidden.js"
 import { authorize, canView } from "../../app/auth/ClusterPolicies.js"
 
 describe("ClusterPolicies", () => {

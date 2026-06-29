@@ -1,4 +1,4 @@
-import { Role } from "@template/domain/auth/Role"
+import type { Role } from "@template/domain/auth/Role"
 import { RunStatus } from "@template/domain/run/RunStatus"
 import { css, type Handle } from "remix/ui"
 import { RunsList } from "../assets/runs-list.entry.js"

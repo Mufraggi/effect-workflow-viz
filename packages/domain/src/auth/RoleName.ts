@@ -1,5 +1,5 @@
 import { Schema } from "effect"
-import { Role } from "./Role.js"
+import type { Role } from "./Role.js"
 
 /**
  * Branded string for policy-role comparisons. Runtime value is the same string
@@ -14,10 +14,10 @@ export type RoleName = typeof RoleName.Type
  * Keep in sync with the `Role` literal.
  */
 export const roleNames = {
-  admin:    RoleName.make("admin"),
-  user:     RoleName.make("user"),
+  admin: RoleName.make("admin"),
+  user: RoleName.make("user"),
   readonly: RoleName.make("readonly"),
-  guest:    RoleName.make("guest")
+  guest: RoleName.make("guest")
 } as const
 
 /**

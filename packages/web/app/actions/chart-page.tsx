@@ -70,7 +70,8 @@ const styles = {
  */
 export function ChartPage(handle: Handle<ChartPageProps>) {
   return () => {
-    const { activeEnvId, currentPath, currentUserRole, environments, filters, fromMs, query, runs, toMs, truncated } = handle.props
+    const { activeEnvId, currentPath, currentUserRole, environments, filters, fromMs, query, runs, toMs, truncated } =
+      handle.props
     return (
       <AppLayout
         title="Chart — Workflow Viz"

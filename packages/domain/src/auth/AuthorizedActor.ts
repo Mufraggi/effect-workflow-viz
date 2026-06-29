@@ -9,7 +9,7 @@ import type { RoleName } from "./RoleName.js"
  * `authorizedActor()` function, which is deliberately un-exported so that
  * values of this type can only originate from the policy middleware.
  */
-export type AuthorizedActor<Entity extends string, Action extends string> = RoleName
+export type AuthorizedActor<_Entity extends string, _Action extends string> = RoleName
 
 /**
  * Internal constructor. Exported but not part of the public API — the
@@ -17,7 +17,6 @@ export type AuthorizedActor<Entity extends string, Action extends string> = Role
  * and business services receive them as opaque tokens.
  */
 export const authorizedActor = <
-  Entity extends string,
-  Action extends string
->(roleName: RoleName): AuthorizedActor<Entity, Action> =>
-  roleName as AuthorizedActor<Entity, Action>
+  _Entity extends string,
+  _Action extends string
+>(roleName: RoleName): AuthorizedActor<_Entity, _Action> => roleName as AuthorizedActor<_Entity, _Action>

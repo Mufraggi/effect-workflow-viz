@@ -1,6 +1,7 @@
-import type { Role } from "../../../domain/src/auth/Role.js"
-import { RoleName, roleNames, toRoleName } from "../../../domain/src/auth/RoleName.js"
-import { Forbidden } from "../../../domain/src/auth/Forbidden.js"
+import { Forbidden } from "@template/domain/auth/Forbidden"
+import type { Role } from "@template/domain/auth/Role"
+import type { RoleName } from "@template/domain/auth/RoleName"
+import { roleNames, toRoleName } from "@template/domain/auth/RoleName"
 import { Effect } from "effect"
 
 // ---------------------------------------------------------------------------
@@ -23,25 +24,25 @@ export type Policies<M extends PolicyMap> = M
  */
 export const clusterPolicies = {
   cluster: {
-    overview:  [roleNames.admin, roleNames.user, roleNames.readonly, roleNames.guest],
-    nodes:     [roleNames.admin, roleNames.user, roleNames.readonly, roleNames.guest],
-    shards:    [roleNames.admin, roleNames.user, roleNames.readonly, roleNames.guest],
+    overview: [roleNames.admin, roleNames.user, roleNames.readonly, roleNames.guest],
+    nodes: [roleNames.admin, roleNames.user, roleNames.readonly, roleNames.guest],
+    shards: [roleNames.admin, roleNames.user, roleNames.readonly, roleNames.guest],
     selectEnv: [roleNames.admin, roleNames.user, roleNames.readonly, roleNames.guest]
   },
   workflow: {
-    list:   [roleNames.admin, roleNames.user, roleNames.readonly, roleNames.guest],
+    list: [roleNames.admin, roleNames.user, roleNames.readonly, roleNames.guest],
     detail: [roleNames.admin, roleNames.user, roleNames.readonly, roleNames.guest],
-    types:  [roleNames.admin, roleNames.user, roleNames.readonly, roleNames.guest]
+    types: [roleNames.admin, roleNames.user, roleNames.readonly, roleNames.guest]
   },
   config: {
-    settings:     [roleNames.admin, roleNames.user],
-    users:        [roleNames.admin, roleNames.user],
+    settings: [roleNames.admin, roleNames.user],
+    users: [roleNames.admin, roleNames.user],
     environments: [roleNames.admin, roleNames.user]
   }
 } as const satisfies Policies<{
-  cluster: { overview: RoleName[]; nodes: RoleName[]; shards: RoleName[]; selectEnv: RoleName[] }
-  workflow: { list: RoleName[]; detail: RoleName[]; types: RoleName[] }
-  config: { settings: RoleName[]; users: RoleName[]; environments: RoleName[] }
+  cluster: { overview: Array<RoleName>; nodes: Array<RoleName>; shards: Array<RoleName>; selectEnv: Array<RoleName> }
+  workflow: { list: Array<RoleName>; detail: Array<RoleName>; types: Array<RoleName> }
+  config: { settings: Array<RoleName>; users: Array<RoleName>; environments: Array<RoleName> }
 }>
 
 // ---------------------------------------------------------------------------
@@ -78,9 +79,11 @@ export const authorize = (
   action: string
 ): Effect.Effect<void, Forbidden> => {
   if (canView(role, entity, action)) return Effect.void
-  return Effect.fail(new Forbidden({
-    reason: `Role "${role}" is not permitted to ${action} ${entity}`,
-    entity,
-    action
-  }))
+  return Effect.fail(
+    new Forbidden({
+      reason: `Role "${role}" is not permitted to ${action} ${entity}`,
+      entity,
+      action
+    })
+  )
 }

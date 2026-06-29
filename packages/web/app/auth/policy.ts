@@ -1,5 +1,5 @@
-import type { Role } from "@template/domain/auth/Role"
 import { Forbidden } from "@template/domain/auth/Forbidden"
+import type { Role } from "@template/domain/auth/Role"
 import { Effect } from "effect"
 import type { Middleware, RequestContext } from "remix/router"
 import { authorize } from "./ClusterPolicies.js"
