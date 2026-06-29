@@ -1,6 +1,7 @@
 import { clientEntry, css, type EntryComponent, type Handle, type SerializableProps } from "remix/ui"
 import { routes } from "../routes.js"
 import { tk } from "../ui/tokens.js"
+import { fmtRelative } from "../utils/runs.js"
 
 // ---------------------------------------------------------------------------
 // Props
@@ -19,6 +20,9 @@ export type ExecutionRow = {
 
 export interface ExecutionsEntryProps extends SerializableProps {
   executions: Array<ExecutionRow>
+  // Server render time; threaded into relative-time formatting so SSR and
+  // hydration produce identical text. See `fmtRelative` in utils/runs.ts.
+  nowMs: number
 }
 
 // ---------------------------------------------------------------------------
@@ -192,23 +196,16 @@ const DISPLAY_STATUS: Record<string, string> = {
   unknown: "Failed"
 }
 
-const formatRelativeTime = (iso: string | null): string => {
-  if (!iso) return "—"
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  const diff = Date.now() - d.getTime()
-  if (diff < 60_000) return "just now"
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
-  if (diff < 30 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d ago`
-  return `${Math.floor(diff / 86_400_000)}d ago`
-}
-
-const formatDuration = (status: string, durationMs: number | null, startedAt: string | null): string => {
+const formatDuration = (
+  status: string,
+  durationMs: number | null,
+  startedAt: string | null,
+  nowMs: number
+): string => {
   if (status === "pending") return "—"
   if (status === "running") {
     if (!startedAt) return "—"
-    const elapsed = Date.now() - new Date(startedAt).getTime()
+    const elapsed = nowMs - new Date(startedAt).getTime()
     if (Number.isNaN(elapsed) || elapsed < 0) return "—"
     if (elapsed < 1000) return "<1s"
     if (elapsed < 60_000) return `${Math.floor(elapsed / 1000)}s`
@@ -233,7 +230,7 @@ const truncateId = (id: string): string => id.length > 16 ? `${id.slice(0, 8)}�
 export const ExecutionsEntry: EntryComponent<ExecutionsEntryProps> = clientEntry(
   import.meta.url,
   function ExecutionsEntry(handle: Handle<ExecutionsEntryProps>) {
-    const { executions } = handle.props
+    const { executions, nowMs } = handle.props
 
     return () => {
       if (executions.length === 0) {
@@ -323,10 +320,10 @@ export const ExecutionsEntry: EntryComponent<ExecutionsEntryProps> = clientEntry
                     </span>
                   </td>
                   <td mix={[s.td, s.mono]}>
-                    {formatRelativeTime(ex.startedAt)}
+                    {fmtRelative(ex.startedAt, nowMs)}
                   </td>
                   <td mix={[s.td, s.durValue]}>
-                    {formatDuration(ex.status, ex.durationMs, ex.startedAt)}
+                    {formatDuration(ex.status, ex.durationMs, ex.startedAt, nowMs)}
                   </td>
                 </tr>
               ))}

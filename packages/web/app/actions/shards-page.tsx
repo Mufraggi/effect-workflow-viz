@@ -87,7 +87,7 @@ export function ShardsPage(handle: Handle<ShardsPageProps>) {
               </p>
             </div>
           ) :
-          <ShardsEntry initialSnapshot={initialSnapshot} />}
+          <ShardsEntry initialSnapshot={initialSnapshot} nowMs={Date.now()} />}
       </AppLayout>
     )
   }

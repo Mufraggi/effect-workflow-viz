@@ -86,7 +86,7 @@ export function NodesPage(handle: Handle<NodesPageProps>) {
               </p>
             </div>
           ) :
-          <NodesEntry initialSnapshot={initialSnapshot} />}
+          <NodesEntry initialSnapshot={initialSnapshot} nowMs={Date.now()} />}
       </AppLayout>
     )
   }

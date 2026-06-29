@@ -40,6 +40,23 @@ export const fmtDate = (value: string | null): string => {
   return m === null ? value : `${m[1]} ${m[2]}`
 }
 
+/**
+ * Deterministic relative time ("just now" / "Xm ago" / "Xh ago" / "Xd ago").
+ * `nowMs` MUST be a fixed reference (e.g. the server render time, passed through
+ * entry props) so server SSR and client hydration produce identical text and
+ * avoid hydration drift. Accepts ISO strings or DB " " separated timestamps.
+ */
+export const fmtRelative = (value: string | null, nowMs: number): string => {
+  if (!value) return "—"
+  const d = new Date(value.replace(" ", "T"))
+  if (Number.isNaN(d.getTime())) return value
+  const diff = nowMs - d.getTime()
+  if (diff < 60_000) return "just now"
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
+  return `${Math.floor(diff / 86_400_000)}d ago`
+}
+
 /** Human-readable run duration; "—" when unknown (no reply yet). */
 export const fmtDuration = (ms: number | null): string => {
   if (ms === null) return "—"

@@ -78,7 +78,7 @@ export function ExecutionsPage(handle: Handle<ExecutionsPageProps>) {
               </p>
             </div>
           ) :
-          <ExecutionsEntry executions={[...executions]} />}
+          <ExecutionsEntry executions={[...executions]} nowMs={Date.now()} />}
       </AppLayout>
     )
   }

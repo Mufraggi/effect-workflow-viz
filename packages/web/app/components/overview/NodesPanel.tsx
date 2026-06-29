@@ -1,6 +1,7 @@
 import { css, type Handle } from "remix/ui"
 import type { NodeInfo } from "../../types/overview.js"
 import { tk } from "../../ui/tokens.js"
+import { fmtRelative } from "../../utils/runs.js"
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -95,28 +96,12 @@ const s = {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-const fmtHeartbeat = (hb: string | null): string => {
-  if (!hb) return "—"
-  const d = new Date(hb.replace(" ", "T"))
-  if (Number.isNaN(d.getTime())) return hb
-  const now = Date.now()
-  const diff = now - d.getTime()
-  if (diff < 60_000) return "just now"
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
-  return `${Math.floor(diff / 86_400_000)}d ago`
-}
-
-// ---------------------------------------------------------------------------
 // NodeRow
 // ---------------------------------------------------------------------------
 
-function NodeRow(handle: Handle<{ node: NodeInfo }>) {
+function NodeRow(handle: Handle<{ node: NodeInfo; nowMs: number }>) {
   return () => {
-    const { node } = handle.props
+    const { node, nowMs } = handle.props
     const dotColor = node.status === "healthy" ? "#22c55e" : tk.dimmedFg
     return (
       <div mix={s.row}>
@@ -132,7 +117,7 @@ function NodeRow(handle: Handle<{ node: NodeInfo }>) {
           </span>
           <span mix={s.stat}>
             <span mix={s.statLabel}>HB</span>
-            {fmtHeartbeat(node.lastHeartbeat)}
+            {fmtRelative(node.lastHeartbeat, nowMs)}
           </span>
         </div>
       </div>
@@ -144,9 +129,9 @@ function NodeRow(handle: Handle<{ node: NodeInfo }>) {
 // NodesPanel
 // ---------------------------------------------------------------------------
 
-export function NodesPanel(handle: Handle<{ nodes: ReadonlyArray<NodeInfo> }>) {
+export function NodesPanel(handle: Handle<{ nodes: ReadonlyArray<NodeInfo>; nowMs: number }>) {
   return () => {
-    const { nodes } = handle.props
+    const { nodes, nowMs } = handle.props
     const activeNodes = nodes.filter((n) => n.status === "healthy")
 
     return (
@@ -168,7 +153,7 @@ export function NodesPanel(handle: Handle<{ nodes: ReadonlyArray<NodeInfo> }>) {
           ) :
           (
             <div mix={s.list}>
-              {nodes.map((node) => <NodeRow key={node.id} node={node} />)}
+              {nodes.map((node) => <NodeRow key={node.id} node={node} nowMs={nowMs} />)}
             </div>
           )}
       </div>

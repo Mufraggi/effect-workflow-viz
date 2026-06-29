@@ -13,6 +13,9 @@ import { tk } from "../ui/tokens.js"
 
 export interface OverviewEntryProps extends SerializableProps {
   initialSnapshot: OverviewSnapshot
+  // Server render time; threaded into relative-time formatting so SSR and
+  // hydration produce identical text. See `fmtRelative` in utils/runs.ts.
+  nowMs: number
 }
 
 type ConnectionState = "connecting" | "live" | "reconnecting"
@@ -311,7 +314,7 @@ export const OverviewEntry: EntryComponent<OverviewEntryProps> = clientEntry(
 
           {/* ── Nodes + Shards side-by-side ── */}
           <div mix={s.bottomRow}>
-            <NodesPanel nodes={nodes} />
+            <NodesPanel nodes={nodes} nowMs={handle.props.nowMs} />
             <ShardGrid shards={shards} />
           </div>
         </main>

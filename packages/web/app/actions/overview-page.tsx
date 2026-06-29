@@ -87,7 +87,7 @@ export function OverviewPage(handle: Handle<OverviewPageProps>) {
               </p>
             </div>
           ) :
-          <OverviewEntry initialSnapshot={initialSnapshot} />}
+          <OverviewEntry initialSnapshot={initialSnapshot} nowMs={Date.now()} />}
       </AppLayout>
     )
   }

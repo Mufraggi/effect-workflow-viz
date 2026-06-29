@@ -12,6 +12,9 @@ import { tk } from "../ui/tokens.js"
 
 export interface ShardsEntryProps extends SerializableProps {
   initialSnapshot: OverviewSnapshot
+  // Server render time; threaded into relative-time formatting so SSR and
+  // hydration produce identical text. See `fmtRelative` in utils/runs.ts.
+  nowMs: number
 }
 
 // ---------------------------------------------------------------------------
@@ -161,7 +164,7 @@ export const ShardsEntry: EntryComponent<ShardsEntryProps> = clientEntry(
 
           {/* ── Nodes + Shards side-by-side ── */}
           <div mix={s.bottomRow}>
-            <NodesPanel nodes={nodes} />
+            <NodesPanel nodes={nodes} nowMs={handle.props.nowMs} />
             <ShardGrid shards={shards} />
           </div>
         </main>

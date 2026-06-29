@@ -1,6 +1,7 @@
 import { clientEntry, css, type EntryComponent, type Handle, type SerializableProps } from "remix/ui"
 import type { OverviewSnapshot } from "../types/overview.js"
 import { tk } from "../ui/tokens.js"
+import { fmtRelative } from "../utils/runs.js"
 
 // ---------------------------------------------------------------------------
 // Props
@@ -8,6 +9,9 @@ import { tk } from "../ui/tokens.js"
 
 export interface NodesEntryProps extends SerializableProps {
   initialSnapshot: OverviewSnapshot
+  // Server render time; threaded into relative-time formatting so SSR and
+  // hydration produce identical text. See `fmtRelative` in utils/runs.ts.
+  nowMs: number
 }
 
 // ---------------------------------------------------------------------------
@@ -169,17 +173,6 @@ const s = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const fmtHeartbeat = (hb: string | null): string => {
-  if (!hb) return "—"
-  const d = new Date(hb.replace(" ", "T"))
-  if (Number.isNaN(d.getTime())) return hb
-  const diff = Date.now() - d.getTime()
-  if (diff < 60_000) return "just now"
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
-  return `${Math.floor(diff / 86_400_000)}d ago`
-}
-
 // ---------------------------------------------------------------------------
 // Components
 // ---------------------------------------------------------------------------
@@ -196,9 +189,9 @@ function StatusBadge(handle: Handle<{ active: boolean }>) {
   }
 }
 
-function NodeCard(handle: Handle<{ node: OverviewSnapshot["nodes"][number] }>) {
+function NodeCard(handle: Handle<{ node: OverviewSnapshot["nodes"][number]; nowMs: number }>) {
   return () => {
-    const { node } = handle.props
+    const { node, nowMs } = handle.props
     const isActive = node.status === "healthy"
 
     return (
@@ -217,7 +210,7 @@ function NodeCard(handle: Handle<{ node: OverviewSnapshot["nodes"][number] }>) {
           {!isActive && (
             <>
               <span mix={s.metaLabel}>Last seen</span>
-              <span mix={s.metaValue}>{fmtHeartbeat(node.lastHeartbeat)}</span>
+              <span mix={s.metaValue}>{fmtRelative(node.lastHeartbeat, nowMs)}</span>
             </>
           )}
           <span mix={s.metaLabel}>Groups</span>
@@ -225,7 +218,7 @@ function NodeCard(handle: Handle<{ node: OverviewSnapshot["nodes"][number] }>) {
           {isActive && (
             <>
               <span mix={s.metaLabel}>Heartbeat</span>
-              <span mix={s.metaValue}>{fmtHeartbeat(node.lastHeartbeat)}</span>
+              <span mix={s.metaValue}>{fmtRelative(node.lastHeartbeat, nowMs)}</span>
             </>
           )}
         </div>
@@ -263,6 +256,7 @@ export const NodesEntry: EntryComponent<NodesEntryProps> = clientEntry(
   import.meta.url,
   function NodesEntry(handle: Handle<NodesEntryProps>) {
     const snapshot: OverviewSnapshot = handle.props.initialSnapshot
+    const { nowMs } = handle.props
 
     return () => {
       const { cluster, nodes } = snapshot
@@ -306,7 +300,7 @@ export const NodesEntry: EntryComponent<NodesEntryProps> = clientEntry(
           {/* ── Node cards ── */}
           {hasNodes && (
             <div mix={s.nodeGrid}>
-              {nodes.map((node) => <NodeCard key={node.id} node={node} />)}
+              {nodes.map((node) => <NodeCard key={node.id} node={node} nowMs={nowMs} />)}
             </div>
           )}
 
