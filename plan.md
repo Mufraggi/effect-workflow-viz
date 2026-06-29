@@ -1,255 +1,319 @@
-# Implementation Plan
-  
+# Plan d'implémentation — Rôle invité read-only cluster
+
 ## Goal
-Expose  a read-only MCP server (HTTP/SSE) over the observed Effect Cluster, reusing the existing `WorkflowReader` and `OverviewReader` factories and the same `Schema.Struct` outputs that the Remix loaders use.
-
----
-
-## ✅ Checkpoint (submit to Hugo before coding)
-
-**Decision required on multi-env resolution strategy**
-
-Scout findings:
-- `DbManager` (in `@template/environments`) already caches `PgClient` pools per `envId`, resolved from the SQLite-backed `EnvironmentRepository`.
-- The Remix UI stores `envId` in the session cookie; each loader calls `DbManager.getClient(envId)` → `makeWorkflowReader(pg)`.
-- There is no concept of a global "default" Postgres URL at the MCP level — every connection goes through `DbManager`.
-
-**Proposal (Option A — recommended):**  
-`envId` is a required **tool parameter** (string). The MCP server uses `DbManager.getClient(envId)` to resolve the pool on every invocation.
-
-| Option | Description | Pro | Con |
-|--------|-------------|-----|-----|
-| **A** envId as tool param | Single MCP server, user passes e.g. `envId: "prod"` | Zero infra, matches existing pattern, single port | Client must know envId |
-| **B** server per env | Run N MCP instances, one per env | No param needed | N ports, N processes, operational burden, envs are dynamic |
-| **C** resource URI path | `cluster://{envId}/overview` | Neat URIs | Tools can't encode envId in a path cleanly; all tools still need a param |
-
-**Recommendation: A.**  DbManager was *designed* for this pattern (see the `getClient(envId)` cache).  
-Submit this choice to Hugo before the worker starts writing code.
+Ajouter un rôle `"guest"` (et `"readonly"` intermédiaire) au système d'authentification, avec une matrice de permissions policy-driven, un middleware de vérification par route, un masquage UI de la sidebar, et un mécanisme de création de compte guest. Le backend reste l'enforceur autoritaire.
 
 ---
 
 ## Tasks
 
-### 1. Add `@effect/ai` dependency to a new `packages/mcp/` package
+### 1. Étendre `Role` schema — ajouter `"readonly"` et `"guest"`
 
-- **File:** `packages/mcp/package.json` (new)
-- **File:** `packages/mcp/tsconfig.json` (new, extends `tsconfig.base.json`)
-- **File:** `packages/mcp/tsconfig.src.json` (new)
-- **File:** `packages/mcp/tsconfig.build.json` (new)
-- **Changes:** Create skeleton package with:
-  - `dependencies`: `@effect/ai`, `@template/database` (workspace), `@template/domain` (workspace), `@template/environments` (workspace), `effect`, `@effect/platform`, `@effect/platform-node`
-  - `scripts`: `build`, `dev`, `start`
-  - `effect.generateExports` config matching other packages
-- **Acceptance:** `pnpm install` succeeds, `tsc -b` compiles empty package.
+- **File**: `packages/domain/src/auth/Role.ts`
+- **Changes**: Passer de `Schema.Literal("admin", "user")` à `Schema.Literal("admin", "user", "readonly", "guest")`
+- **Acceptance**: `Role` type accepte les 4 valeurs. Tous les usages existants (admin/user) continuent de fonctionner.
 
-### 2. Export `makeOverviewReader` (already exported) and ensure `buildSnapshotFromDb` is available from `@template/database`
+### 2. Créer les branded constants de rôle (`RoleName.ts`)
 
-The Remix web app currently has `buildSnapshotFromDb` in `web/app/types/overview.ts`. This is a pure transformation function (no SQL, no web imports). It must be reusable from the MCP package without depending on `@template/web`.
+- **File (new)**: `packages/domain/src/auth/RoleName.ts`
+- **Changes**:
+  ```ts
+  // Branded strings pour le policy system (pas de string littéral en dur).
+  // Chaque rôle est sa propre marque, ce qui permet au type system de
+  // distinguer statiquement les permissions.
+  export const RoleName = Schema.String.pipe(Schema.brand("RoleName"))
+  export type RoleName = typeof RoleName.Type
 
-- **File:** `packages/database/src/repository/overviewReader/OverviewReader.ts`
-- **Changes:**  
-  Move the `buildSnapshotFromDb` function (and its dependent types `OverviewSnapshot`, `ClusterStats`, `WorkflowStats`, `ActivityPoint`, `NodeInfo`, `ShardInfo`, `NodeStatus`, `OverviewReaderResult`) into this file, or into a new `packages/database/src/repository/overviewReader/snapshot.ts`.  
-  Update `packages/database/src/index.ts` to re-export it.
-- **Acceptance:** `import { buildSnapshotFromDb } from "@template/database/overviewReader/OverviewReader"` compiles and produces the same shape as before.
+  export const AdministratorRoleName = Schema.String.pipe(Schema.brand("AdministratorRoleName"))
+  export type AdministratorRoleName = typeof AdministratorRoleName.Type
 
-### 3. Create the MCP server layer (`McpServer.ts`)
-
-- **File:** `packages/mcp/src/McpServer.ts` (new)
-- **Purpose:** Define all tools and resources using `@effect/ai`'s `McpServer` + `Toolkit`/`AiTool` pattern. No SQL here.
-
-#### Resource: `cluster://overview`
-
-| Field | Value |
-|-------|-------|
-| URI | `cluster://overview` |
-| Input | `envId: string` (via resource URI query or separate; see multi-env decision) |
-| Output shape | `OverviewSnapshot` (same shape as Remix `buildSnapshotFromDb` output) |
-| Handler logic | `makeOverviewReader(pg).buildSnapshot()` → `buildSnapshotFromDb(raw)` |
-
-#### Resource: `cluster://nodes`
-
-| Field | Value |
-|-------|-------|
-| URI | `cluster://nodes` |
-| Output shape | `ReadonlyArray<NodeInfo>` (extracted from `OverviewSnapshot.nodes`) |
-| Handler logic | Same as overview, extract `.nodes` |
-
-#### Resource: `cluster://shards`
-
-| Field | Value |
-|-------|-------|
-| URI | `cluster://shards` |
-| Output shape | `ReadonlyArray<ShardInfo>` |
-| Handler logic | Same as overview, extract `.shards` |
-
-#### Resource: `cluster://workflow-types`
-
-| Field | Value |
-|-------|-------|
-| URI | `cluster://workflow-types` |
-| Output shape | `ReadonlyArray<string>` (entity types / workflow names) |
-| Handler logic | `makeOverviewReader(pg).buildSnapshot()` → `.entityTypes.map(e => e.entityType)` |
-
-#### Tool: `list_executions`
-
-| Field | Value |
-|-------|-------|
-| Name | `list_executions` |
-| Input params | `envId: string`, `limit?: number` (default 50, max 200), `before?: string` (cursor), `status?: string[]`, `workflowName?: string`, `traceId?: string`, `from?: string` (ISO), `to?: string` (ISO) |
-| Output shape | `{ items: RunSummary[], nextCursor: string | null }` — **reuses `RunSummary` Schema.Class exactly** |
-| Handler logic | `makeWorkflowReader(pg).listRuns(filter, page)` |
-
-#### Tool: `get_execution`
-
-| Field | Value |
-|-------|-------|
-| Name | `get_execution` |
-| Input params | `envId: string`, `executionId: string` (entity_id) OR `messageId: string` |
-| Output shape | `RunDetail` — **reuses `RunDetail` Schema.Class exactly** |
-| Handler logic | `makeWorkflowReader(pg).getRunByExecutionId(executionId)` or `getRun(messageId)` |
-
-#### Tool: `get_execution_children`
-
-| Field | Value |
-|-------|-------|
-| Name | `get_execution_children` |
-| Input params | `envId: string`, `messageId: string` |
-| Output shape | `RunSummary[]` — **reuses `RunSummary` exactly** |
-| Handler logic | `makeWorkflowReader(pg).getRun(msgId)` → extract `traceId` → `getChildRuns(traceId, msgId)` |
-
-#### Honesty rules enforced (same as UI):
-- `RunStatus`: only the 7 literals (`pending`, `running`, `success`, `failed_app`, `crashed`, `interrupted`, `unknown`)
-- `durationMs`: derived from Snowflake delta (`replyId - messageId`), null when no reply or non-positive
-- `startedAt`: from real `last_read` column
-- No "Compensating", no "degraded", no cpu/mem fields
-- All status decoding uses the same `@template/domain/workflow/decode/status.ts` logic
-
-### 4. Add `EnvReader` helper to resolve `PgClient` from `envId`
-
-The MCP handlers need a consistent way to go from `envId: string` → `makeWorkflowReader(pg)`. Create a thin helper that encapsulates the DbManager lookup.
-
-- **File:** `packages/mcp/src/EnvReader.ts` (new)
-- **Changes:**
+  // Helpers pour convertir Role → RoleName (evite les casts partout)
+  export const toRoleName: (role: Role) => RoleName
   ```
-  export class EnvReader extends Effect.Service<EnvReader>()("EnvReader", {
-    effect: Effect.gen(function*() {
-      const db = yield* DbManager
-      return {
-        getReader: (envId: string) =>
-          Effect.gen(function*() {
-            const pg = yield* db.getClient(envId)
-            return makeWorkflowReader(pg)
-          }),
-        getOverviewReader: (envId: string) =>
-          Effect.gen(function*() {
-            const pg = yield* db.getClient(envId)
-            return makeOverviewReader(pg)
-          })
-      }
-    }),
-    dependencies: [DbManager.Default]
-  }) {}
+- **Acceptance**: `AdministratorRoleName.make("guest")` compile et produit une valeur brandée. Les rôles existants peuvent être convertis.
+
+### 3. Créer l'erreur `Forbidden` (403)
+
+- **File (new)**: `packages/domain/src/auth/Forbidden.ts`
+- **Changes**:
+  ```ts
+  import { Schema } from "effect"
+
+  export class Forbidden extends Schema.TaggedError<Forbidden>()("Forbidden", {
+    reason: Schema.String,
+    action: Schema.String,
+    entity: Schema.String
+  }) {
+    // Marqueur statique HttpApiSchema.annotations status 403
+    static [HttpApiSchema.annotations]() { return { status: 403 as const } }
+  }
   ```
-- **Acceptance:** `EnvReader` compiles, provides `getReader` and `getOverviewReader`.
+- **Acceptance**: `Forbidden` est un `Schema.TaggedError` distinct de `InvalidCredentials` (401), avec un champ `reason` et les annotations HTTP 403.
 
-### 5. Add auth middleware (API key)
+### 4. Créer le phantom type `AuthorizedActor<Entity, Action>`
 
-Minimal protection: `MCP_API_KEY` env var (configurable). The SSE HTTP endpoint checks `Authorization: Bearer <key>` before upgrading to SSE. Return 401 if absent/mismatch.
+- **File (new)**: `packages/domain/src/auth/AuthorizedActor.ts`
+- **Changes**:
+  ```ts
+  // Phantom type — jamais construit manuellement en dehors de authorizedActor().
+  // Entity et Action sont des string literals qui verrouillent les permissions.
+  export declare class AuthorizedActor<out Entity extends string, out Action extends string> {
+    readonly _Entity: Entity
+    readonly _Action: Action
+  }
 
-- **File:** `packages/mcp/src/auth.ts` (new)
-- **Acceptance:** Requests without the correct key get `401 Unauthorized` before any MCP handshake.
-
-### 6. Create server entry point (`server.ts`)
-
-- **File:** `packages/mcp/src/server.ts` (new)
-- **Purpose:** Start the McpServer HTTP layer, apply auth middleware, listen on configurable port (default 3100).
-- **Pattern:**
-  ```typescript
-  import { McpServer } from "@effect/ai/McpServer"
-  import { Layer, ManagedRuntime } from "effect"
-  // ...
-  const McpLive = McpServer.layerHttp({ port: 3100 })
-  const Runtime = ManagedRuntime.make(McpLive)
-  Runtime.runPromise // …
+  // Constructeur interne — seule façon de créer un AuthorizedActor.
+  export const authorizedActor: <E extends string, A extends string>(
+    entity: E, action: A
+  ) => AuthorizedActor<E, A>
   ```
-- **Acceptance:** Running `tsx packages/mcp/src/server.ts` starts an HTTP server on port 3100. SSE endpoint at `/sse`.
+- **Acceptance**: Impossible de créer un `AuthorizedActor<"config", "settings">` sans passer par `authorizedActor("config", "settings")`.
 
-### 7. Register tools and resources on the McpServer
+### 5. Créer `ClusterPolicies.ts` — matrice de permissions
 
-- **File:** `packages/mcp/src/McpServer.ts`
-- **Changes:** Wire each tool and resource definition (from Task 3) into the `McpServer` layer using `Toolkit` / `AiTool`.
-- **Acceptance:** Each tool appears in the MCP `initialize` response's `tools` list. Each resource appears in `resources`. Calls return the correct data.
+- **File (new)**: `packages/web/app/auth/ClusterPolicies.ts`
+- **Changes**:
+  ```ts
+  // Entités et actions — le `satisfies` verrouille la forme.
+  export const ClusterPolicies = {
+    cluster: {
+      overview: { action: "read", roles: ["admin", "user", "readonly", "guest"] },
+      nodes:    { action: "read", roles: ["admin", "user", "readonly", "guest"] },
+      shards:   { action: "read", roles: ["admin", "user", "readonly", "guest"] },
+    },
+    workflow: {
+      list:   { action: "read", roles: ["admin", "user", "readonly", "guest"] },
+      detail: { action: "read", roles: ["admin", "user", "readonly", "guest"] },
+      types:  { action: "read", roles: ["admin", "user", "readonly", "guest"] },
+    },
+    config: {
+      settings:     { action: "read", roles: ["admin", "user"] },
+      users:        { action: "read", roles: ["admin", "user"] },
+      environments: { action: "read", roles: ["admin", "user"] },
+    },
+  } satisfies Policies<{
+    cluster: { overview: "read"; nodes: "read"; shards: "read" }
+    workflow: { list: "read"; detail: "read"; types: "read" }
+    config: { settings: "read"; users: "read"; environments: "read" }
+  }>
+  ```
+  - **Détail**: Le type `Policies` est une interface générique qui force chaque entitité à mapper des clés d'action vers un `{ action: string; roles: RoleName[] }`. Le `satisfies` empêche l'ajout d'entités/actions non déclarées.
 
-### 8. Update root workspace config
+- **Helper `canView(role, entity, action)`**: fonction synchrone exportée pour l'UI.
+  ```ts
+  export function canView(role: Role, entity: keyof typeof ClusterPolicies, action: string): boolean
+  ```
 
-- **File:** `pnpm-workspace.yaml` — add `packages/mcp` to the workspace.
-- **File:** `tsconfig.build.json` — add reference to `packages/mcp`.
+- **Helper `authorize(role, entity, action)`**: retourne `Effect<void, Forbidden>` pour le backend.
 
-### 9. Verification
+- **Acceptance**: `ClusterPolicies.cluster.overview.roles` contient `"guest"`. `ClusterPolicies.config.settings.roles` ne contient **pas** `"guest"`. `canView("guest", "config", "settings")` retourne `false`.
 
-Run the server, connect with `mcp-cli` or `claude mcp add`, test each tool and resource:
-- `list_executions` with various filters returns `RunSummary[]` matching the UI
-- `get_execution` returns `RunDetail` matching the UI
-- `cluster://overview` returns the same snapshot shape as the overview page
-- Auth: requests without `Authorization: Bearer <key>` are rejected
-- No mutation tools exist in the listing
+### 6. Créer le middleware `policyUse`
+
+- **File (new)**: `packages/web/app/auth/policy.ts`
+- **Changes**:
+  ```ts
+  // Middleware Remix qui vérifie que l'utilisateur courant a le droit d'accéder
+  // à une entité/action. Se base sur context.auth.identity.role et ClusterPolicies.
+  export function policyUse(entity: string, action: string): Middleware
+  // Comportement:
+  //   - si context.auth.ok === false → 401 (via requireAuthRedirect, normal)
+  //   - si le rôle n'est pas autorisé → throw Forbidden → catch dans le controller → 403
+  ```
+- **Acceptance**: Un guest accédant à `/settings` reçoit un 403. Un guest accédant à `/overview` passe.
+
+### 7. Protéger chaque route du controller avec `policyUse`
+
+- **File**: `packages/web/app/actions/controller.tsx`
+- **Changes**:
+  - Remplacer le `protect` unique par un protect par route :
+    - **Routes cluster** (overview, nodes, shards, overviewStream) : ajouter `policyUse("cluster", "overview")` etc.
+    - **Routes workflow** (home, chart, runs, runShow, runChildren, executions, executionShow) : ajouter `policyUse("workflow", "list")` etc.
+    - **Route settings** : ajouter `policyUse("config", "settings")`
+    - **Route environments** (GET) : ajouter `policyUse("config", "environments")`
+  - Supprimer le check ad-hoc `isAdmin` sur les POST settings (remplacé par `policyUse("config", "users")` pour les actions utilisateur et `policyUse("config", "environments")` pour les actions environnement).
+  - Gérer le `Forbidden` error dans le handler (soit middleware catch, soit try-catch dans le handler).
+- **Acceptance**: Chaque route cluster/workflow lance `policyUse`. Les routes config sont bloquées pour guest/readonly.
+
+### 8. Masquer les entrées de nav interdites dans la Sidebar
+
+- **File**: `packages/web/app/components/layout/Sidebar.tsx`
+- **Changes**:
+  - Importer `canView` depuis `ClusterPolicies.ts`
+  - Passer le rôle de l'utilisateur courant à la Sidebar (via AppLayout props ou context)
+  - Filtrer `NAV_ITEMS` avec `canView(role, entity, action)` avant de render
+  - Ajouter un mapping `NavItem → (entity, action)` pour chaque item :
+    - overview → `{ entity: "cluster", action: "overview" }`
+    - nodes → `{ entity: "cluster", action: "nodes" }`
+    - shards → `{ entity: "cluster", action: "shards" }`
+    - executions → `{ entity: "workflow", action: "list" }`
+    - settings → `{ entity: "config", action: "settings" }`
+    - schedules, alerts → pas de policy encore (laissés tels quels ou masqués si pas de href)
+  - Pour les items sans href (schedules, alerts) : masquer si role ≤ guest ou laisser tel quel (hors scope)
+- **Acceptance**: Un guest ne voit pas "Settings" dans la sidebar. Il voit Overview, Nodes, Shards, Executions.
+
+### 9. Propager le `currentUserRole` dans le rendu pour la Sidebar
+
+- **File**: `packages/web/app/components/layout/AppLayout.tsx`
+- **Changes**:
+  - Ajouter un champ `currentUserRole?: string` aux props `AppLayoutProps`
+  - Le passer à `Sidebar`
+- **File**: `packages/web/app/actions/controller.tsx`
+- **Changes**:
+  - Pour chaque handler qui appelle `context.render(...)`, passer `currentUserRole: context.auth.identity.role` dans les props du layout
+- **Acceptance**: La Sidebar reçoit le rôle et peut filtrer les entrées.
+
+### 10. Créer un mécanisme de création de compte guest
+
+- **Option A — CLI script**: Créer `scripts/create-guest-account.ts`
+  ```ts
+  // Lit email + password depuis les args ou l'environnement
+  // Appelle AuthRepository.createUser({ email, passwordHash, role: "guest" })
+  // via le runtime Effect
+  ```
+- **Option B — Settings page extension**: Dans l'onglet Users, ajouter "guest" aux options de rôle (admin seulement).
+- **Option C — Les deux**: CLI pour l'automatisation + extension Settings UI.
+- **Recommendation**: Commencer par CLI (automatisable), puis étendre le Settings UI.
+
+- **File (new)**: `scripts/create-guest-account.ts`
+- **File**: `packages/web/app/actions/settings-page.tsx` (étendre les selects de rôle pour inclure readonly/guest)
+- **File**: `packages/web/app/actions/controller.tsx` (ajouter readonly/guest aux schemas de validation)
+- **Acceptance**: `pnpm tsx scripts/create-guest-account.ts --email guest@example.com --password secret123` crée un compte avec role=guest.
+
+### 11. Mettre à jour les schemas de validation dans le controller
+
+- **File**: `packages/web/app/actions/controller.tsx`
+- **Changes**:
+  - `createUserSchema` : étendre l'union `s.literal("admin") | s.literal("user")` pour inclure `s.literal("readonly")` et `s.literal("guest")`
+  - `updateUserSchema` : pareil
+- **Acceptance**: L'admin peut créer/modifier des comptes avec les nouveaux rôles via Settings.
+
+### 12. Ajouter les exports dans `packages/domain/src/index.ts`
+
+- **File**: `packages/domain/src/index.ts`
+- **Changes**:
+  - Ajouter `export * as RoleName from "./auth/RoleName.js"`
+  - Ajouter `export * as Forbidden from "./auth/Forbidden.js"`
+  - Ajouter `export * as AuthorizedActor from "./auth/AuthorizedActor.js"`
+- **Acceptance**: Les nouveaux modules sont accessibles via `@template/domain`.
+
+### 13. Tests — ajouter des tests pour la matrice de permissions
+
+- **File (new)**: `packages/web/test/auth/ClusterPolicies.test.ts`
+- **Changes**:
+  - Tester que `canView("guest", "cluster", "overview")` → `true`
+  - Tester que `canView("guest", "config", "settings")` → `false`
+  - Tester que `canView("admin", "config", "settings")` → `true`
+  - Tester que `authorize("guest", "config", "settings")` → `Effect<never, Forbidden, never>`
+- **Acceptance**: Les tests passent, validant la matrice et les helpers.
 
 ---
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
-| `pnpm-workspace.yaml` | Add `packages/mcp` |
-| `tsconfig.build.json` | Add reference to `packages/mcp` |
-| `packages/database/src/repository/overviewReader/OverviewReader.ts` | Move `buildSnapshotFromDb` + related types here (or add new `snapshot.ts`) |
-| `packages/database/src/index.ts` | Re-export new snapshot builder |
-| `packages/web/app/types/overview.ts` | Delete or re-import from `@template/database` (deprecate local copy) |
-| `packages/web/app/actions/controller.tsx` | Update import of `buildSnapshotFromDb` to new location |
+| File | Change |
+|---|---|
+| `packages/domain/src/auth/Role.ts` | Ajouter `"readonly"` et `"guest"` au Literal schema |
+| `packages/domain/src/index.ts` | Exporter les nouveaux modules |
+| `packages/web/app/actions/controller.tsx` | Remplacer `protect` par `policyUse` par route + étendre les schemas de validation + supprimer checks ad-hoc |
+| `packages/web/app/components/layout/Sidebar.tsx` | Filtrer NAV_ITEMS par rôle + ajouter mapping entity/action |
+| `packages/web/app/components/layout/AppLayout.tsx` | Propager `currentUserRole` à Sidebar |
+| `packages/web/app/actions/settings-page.tsx` | Ajouter readonly/guest aux selects de rôle |
+| `packages/web/server.ts` | (Optionnel) Ajouter route pour CLI health check |
 
 ## New Files
 
 | File | Purpose |
-|------|---------|
-| `packages/mcp/package.json` | Package manifest with `@effect/ai` + workspace deps |
-| `packages/mcp/tsconfig.json` | Base TS config extending root |
-| `packages/mcp/tsconfig.src.json` | Source TS config |
-| `packages/mcp/tsconfig.build.json` | Build TS config |
-| `packages/mcp/src/McpServer.ts` | Tool + resource definitions using `@effect/ai` |
-| `packages/mcp/src/EnvReader.ts` | Helper to resolve `envId` → `PgClient` → reader |
-| `packages/mcp/src/auth.ts` | API key middleware |
-| `packages/mcp/src/server.ts` | Entry point — start McpServer layer with auth |
-| `packages/mcp/src/index.ts` | Package re-exports |
-| `packages/database/src/repository/overviewReader/snapshot.ts` (optional) | Extracted `buildSnapshotFromDb` if placed in separate file |
+|---|---|
+| `packages/domain/src/auth/RoleName.ts` | Branded role name constants (`AdministratorRoleName`, etc.) |
+| `packages/domain/src/auth/Forbidden.ts` | `Forbidden` TaggedError (403) |
+| `packages/domain/src/auth/AuthorizedActor.ts` | Phantom type `AuthorizedActor<Entity, Action>` |
+| `packages/web/app/auth/ClusterPolicies.ts` | Matrice de permissions + helpers `canView` / `authorize` |
+| `packages/web/app/auth/policy.ts` | Middleware `policyUse(entity, action)` |
+| `scripts/create-guest-account.ts` | CLI pour créer un compte guest |
+| `packages/web/test/auth/ClusterPolicies.test.ts` | Tests unitaires de la matrice |
+
+---
 
 ## Dependencies
 
-```mermaid
-graph TD
-    A[1. Add @effect/ai dep + mcp package] --> B[2. Export buildSnapshotFromDb from database pkg]
-    B --> C[3. Define McpServer tools/resources]
-    A --> D[4. Create EnvReader helper]
-    A --> E[5. Auth middleware]
-    C --> F[6. Server entry point]
-    D --> F
-    E --> F
-    F --> G[7. Register tools on McpServer]
-    G --> H[8. Workspace config]
-    H --> I[9. Verification]
-```
+| Task | Depends On |
+|---|---|
+| 1 (Role extension) | — |
+| 2 (RoleName branded) | 1 |
+| 3 (Forbidden) | — |
+| 4 (AuthorizedActor) | — |
+| 5 (ClusterPolicies) | 1, 2, 3, 4 |
+| 6 (policyUse middleware) | 5 |
+| 7 (Route protection) | 6 |
+| 8 (Sidebar filtering) | 5 |
+| 9 (Propagate role to UI) | 8 |
+| 10 (Guest account creation) | 1 |
+| 11 (Settings validation) | 1 |
+| 12 (Domain exports) | 2, 3, 4 |
+| 13 (Tests) | 5 |
 
-Task 2 (snapshot export) blocks Task 3 (overview resource). Tasks 4-5 are independent and can be parallelized. Task 6 needs Tasks 3-5 complete.
+---
 
 ## Risks
 
-1. **`@effect/ai` API surface**: The exact API of `McpServer`, `Toolkit`, and `AiTool` may differ from assumptions. Need to read the actual package API before coding. If `@effect/ai` is not yet published at the right version, fallback to manual HTTP/SSE implementation using `@effect/platform` `HttpServer` + raw SSE.
+1. **Le middleware Remix `requireAuth` est binaire** — le nouveau `policyUse` doit s'intercaler **après** `requireAuth` (qui a déjà vérifié `context.auth.ok`). Ordre : `[setupGuard(), requireAuthRedirect(), policyUse(...)]`.
+2. **`/environments` (GET) n'a actuellement pas de check admin** — un `user` peut lister les environnements. Avec la nouvelle policy `config.environments → allowRoles(admin, user)`, ce comportement est préservé (user peut toujours voir), mais guest sera bloqué.
+3. **Sidebar : `schedules` et `alerts` n'ont pas de route associée** (pas de `href`) — ils sont déjà désactivés visuellement quand pas de env. Pour guest, on peut les laisser tels quels (hors scope) ou les masquer avec une policy dummy "future" (workflow.schedules, workflow.alerts).
+4. **settings-page.tsx a des selects de rôle en dur** (`<option value="user">`, `<option value="admin">`) — il faut les rendre dynamiques ou au moins ajouter `readonly` et `guest`.
+5. **La fonction `canView` côté UI n'est qu'un masquage** — le backend reste l'enforceur. Documenter ce choix dans le code et dans ce plan.
+6. **Le `createUserSchema` et `updateUserSchema` du controller utilisent `s.union([s.literal("admin"), s.literal("user")])`** — il faut étendre ces unions. Attention à ne pas casser les schémas existants.
+7. **Pas de CLI existante** — la création de `scripts/create-guest-account.ts` nécessite d'importer le runtime Effect (AuthRepository + SqliteLive) depuis le contexte du script, pas du web. Vérifier que les dépendances SQLite fonctionnent en standalone.
 
-2. **`buildSnapshotFromDb` dependency chain**: The function imports `OverviewReaderResult` from the database package and produces `OverviewSnapshot`. Ensure no circular deps. Moving to database package is cleanest.
+---
 
-3. **Resource URI envId resolution**: If the team picks Option A (envId as tool param), resources also need envId. MCP resources don't have built-in params — they can use URI query strings (e.g., `cluster://overview?envId=prod`) or the MCP `arguments` extension. This needs validation against the `@effect/ai` API.
+## À valider par Hugo
 
-4. **Auth**: API key is minimal but effective for self-hosted. If the MCP client (e.g., Claude Desktop) doesn't support Bearer auth on SSE, we may need a simpler token-in-URL approach (less secure but pragmatic). Document this decision.
+Avant de transmettre ce plan au worker d'implémentation, merci de confirmer les points suivants :
 
-5. **Performance**: `cluster://overview` resource runs all 10 SQL queries via `buildSnapshot()`. On large clusters this may be slow. No caching is added in this plan (keep it honest). If latency is a problem, a later plan can add a cache layer on the reader.
+### 1. Context.Tag acteur
+- **Constats** : Le système existant n'utilise **pas** de `Context.Tag` Effect pour l'acteur. L'acteur est porté par `context.auth` (Remix middleware), de type `GoodAuth<User> | BadAuth`.
+- **Question** : Doit-on créer un `Context.Tag` Effect (`CurrentUser` ou `CurrentUserAdmin`) pour l'acteur courant, ou rester avec le pattern existant `context.auth.identity.role` ?
+  - Si oui : `packages/domain/src/auth/CurrentUser.ts` — `Context.Tagged<CurrentUser, User>()`
+  - Si non : adapter `policyUse` pour lire le rôle depuis `context.auth.identity.role`
+- **Proposition** : Reste sur `context.auth.identity.role` (pas de Context.Tag supplémentaire) car ça évite un refactor lourd et le pattern Remix est déjà en place.
 
-6. **Overview schema is a plain type, not a Schema.Struct**: The constraint says reuse Schema.Struct where available. `RunSummary` and `RunDetail` are Schema.Class. `OverviewSnapshot` is a plain TS type. For the MCP, format it as JSON with the same shape — this is consistent with the Remix loader (which serializes it as JSON too).
+### 2. Type du champ rôle
+- **Constats** : Actuellement `Role = Schema.Literal("admin", "user")` — simple union de strings.
+- **Question** : Faut-il créer des branded constants (`AdministratorRoleName.make("guest")`) comme le suggère la consigne, ou simplement étendre le Literal existant ?
+- **Proposition** : Les deux. Étendre `Role` (pour la DB, les schemas) **et** créer `RoleName` brandé (pour le policy system). Le `toRoleName` convertit l'un à l'autre.
+
+### 3. Nom exact de la constante de rôle guest
+- **Proposition** : `AdministratorRoleName.make("guest")` — mais le nom `AdministratorRoleName` est trompeur pour un rôle guest. Suggestion : créer plutôt `RoleName` (brandé) avec des helpers :
+  ```ts
+  export const roleNames = {
+    admin: RoleName.make("admin"),
+    user: RoleName.make("user"),
+    readonly: RoleName.make("readonly"),
+    guest: RoleName.make("guest")
+  } as const
+  ```
+  - **À valider** : Préférez-vous `AdministratorRoleName` ou `RoleName` ?
+
+### 4. Routes config identifiées — sont-elles les bonnes ?
+| Route | Policy | Guest accès |
+|---|---|---|
+| `/settings` | `config.settings` | ❌ Bloqué (403) |
+| `/environments` (GET) | `config.environments` | ❌ Bloqué (403) |
+| `/environments` (POST) | `config.environments` | ❌ Bloqué (403) |
+| `/select-env` | `config.environments` | ⚠️ Switch d'environnement actif — nécessaire pour guest ? |
+| **Routes cluster** | `cluster.*` | ✅ Autorisé |
+| **Routes workflow** | `workflow.*` | ✅ Autorisé |
+
+- **Question** : `/select-env` est-il nécessaire pour guest ? Sans ça, un guest ne peut pas changer d'environnement (bloqué par la sidebar ou par un 403). **Proposition** : Laisser guest accéder à `/select-env` (nécessaire pour utiliser l'app), mais avec `policyUse("config", "environments")` déjà restreint. Alternative : créer une entrée `cluster.selectEnv` dans la matrice.
+
+### 5. Gestion des POST dans `/settings`
+- Actuellement, le handler `/settings` a des POSTs pour `create`, `update`, `delete` user, `create-env`, `delete-env`, `create-key`, `revoke-key`.
+- **Question** : Faut-il des policies distinctes pour les mutations (ex: `config.users.create`), ou la policy `config.settings` (read) suffit-elle puisque le handler retourne déjà 403 sur les POST non-admin ?
+- **Proposition** : Pour v1, un guest accédant à `/settings` reçoit un 403 de `policyUse("config", "settings")` avant même le handler, ce qui bloque tout GET/POST. C'est suffisant.
+
+### 6. Nom du fichier `ClusterPolicies.ts`
+- Emplacement proposé : `packages/web/app/auth/ClusterPolicies.ts`
+- **Question** : Doit-il plutôt être dans `packages/domain/src/auth/` pour être partagé avec le backend ? **Proposition** : Dans `packages/web/app/auth/` car le pattern `canView` UI en dépend et la matrice est propre à cette app web.
+
+Merci de valider/infirmer ces points avant que je lance le worker.

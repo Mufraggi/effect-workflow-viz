@@ -1,3 +1,4 @@
+import type { Role } from "@template/domain/auth/Role"
 import { css, type Handle, type RemixNode } from "remix/ui"
 import { RMX_01 } from "remix/ui/theme"
 import { FONTS_HREF, tk } from "../../ui/tokens.js"
@@ -21,6 +22,7 @@ export interface AppLayoutProps {
   environments?: ReadonlyArray<EnvInfo>
   activeEnvId?: string | null
   currentPath?: string
+  currentUserRole?: Role
 }
 
 // ---------------------------------------------------------------------------
@@ -65,7 +67,7 @@ const s = {
  */
 export function AppLayout(handle: Handle<AppLayoutProps>) {
   return () => {
-    const { activeEnvId, activeNav, children, currentPath, environments, title = "Workflow Viz" } = handle.props
+    const { activeEnvId, activeNav, children, currentPath, currentUserRole, environments, title = "Workflow Viz" } = handle.props
 
     const currentEnv = (environments ?? []).find((e) => e.id === activeEnvId)
     const isLive = currentEnv !== undefined
@@ -96,6 +98,7 @@ export function AppLayout(handle: Handle<AppLayoutProps>) {
               environments={environments ?? []}
               activeEnvId={activeEnvId ?? null}
               currentPath={currentPath ?? "/"}
+              currentUserRole={currentUserRole ?? null}
             />
             <div mix={s.mainArea}>
               <Topbar

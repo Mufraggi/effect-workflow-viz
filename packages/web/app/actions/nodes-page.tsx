@@ -1,3 +1,4 @@
+import type { Role } from "@template/domain/auth/Role"
 import { css, type Handle } from "remix/ui"
 import { NodesEntry } from "../assets/nodes.entry.js"
 import { AppLayout, type EnvInfo } from "../components/layout/AppLayout.js"
@@ -9,6 +10,7 @@ export interface NodesPageProps {
   environments: ReadonlyArray<EnvInfo>
   activeEnvId: string | null
   currentPath: string
+  currentUserRole?: Role
 }
 
 const s = {
@@ -49,7 +51,7 @@ const s = {
  */
 export function NodesPage(handle: Handle<NodesPageProps>) {
   return () => {
-    const { activeEnvId, currentPath, environments, initialSnapshot } = handle.props
+    const { activeEnvId, currentPath, currentUserRole, environments, initialSnapshot } = handle.props
     return (
       <AppLayout
         title="Nodes — Workflow Viz"
@@ -57,6 +59,7 @@ export function NodesPage(handle: Handle<NodesPageProps>) {
         environments={environments}
         activeEnvId={activeEnvId}
         currentPath={currentPath}
+        currentUserRole={currentUserRole}
       >
         {!activeEnvId ?
           (

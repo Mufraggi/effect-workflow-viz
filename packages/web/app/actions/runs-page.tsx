@@ -1,3 +1,4 @@
+import { Role } from "@template/domain/auth/Role"
 import { RunStatus } from "@template/domain/run/RunStatus"
 import { css, type Handle } from "remix/ui"
 import { RunsList } from "../assets/runs-list.entry.js"
@@ -16,6 +17,7 @@ export interface RunsPageProps {
   environments: ReadonlyArray<EnvInfo>
   activeEnvId: string | null
   currentPath: string
+  currentUserRole?: Role
 }
 
 const STATUS_OPTIONS = RunStatus.literals
@@ -131,7 +133,7 @@ const styles = {
  */
 export function RunsPage(handle: Handle<RunsPageProps>) {
   return () => {
-    const { activeEnvId, currentPath, environments, filters, nextCursor, query, runs } = handle.props
+    const { activeEnvId, currentPath, currentUserRole, environments, filters, nextCursor, query, runs } = handle.props
     return (
       <AppLayout
         title="Runs — Workflow Viz"
@@ -139,6 +141,7 @@ export function RunsPage(handle: Handle<RunsPageProps>) {
         environments={environments}
         activeEnvId={activeEnvId}
         currentPath={currentPath}
+        currentUserRole={currentUserRole}
       >
         <main mix={styles.container}>
           <header mix={styles.headerRow}>

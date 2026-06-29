@@ -1,3 +1,4 @@
+import type { Role } from "@template/domain/auth/Role"
 import { css, type Handle } from "remix/ui"
 import { OverviewEntry } from "../assets/overview.entry.js"
 import { AppLayout, type EnvInfo } from "../components/layout/AppLayout.js"
@@ -9,6 +10,7 @@ export interface OverviewPageProps {
   environments: ReadonlyArray<EnvInfo>
   activeEnvId: string | null
   currentPath: string
+  currentUserRole?: Role
 }
 
 const s = {
@@ -50,7 +52,7 @@ const s = {
  */
 export function OverviewPage(handle: Handle<OverviewPageProps>) {
   return () => {
-    const { activeEnvId, currentPath, environments, initialSnapshot } = handle.props
+    const { activeEnvId, currentPath, currentUserRole, environments, initialSnapshot } = handle.props
     return (
       <AppLayout
         title="Overview — Workflow Viz"
@@ -58,6 +60,7 @@ export function OverviewPage(handle: Handle<OverviewPageProps>) {
         environments={environments}
         activeEnvId={activeEnvId}
         currentPath={currentPath}
+        currentUserRole={currentUserRole}
       >
         {!activeEnvId ?
           (

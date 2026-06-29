@@ -1,3 +1,4 @@
+import type { Role } from "@template/domain/auth/Role"
 import { css, type Handle } from "remix/ui"
 import { RunsScatter } from "../assets/runs-scatter.entry.js"
 import { AppLayout, type EnvInfo } from "../components/layout/AppLayout.js"
@@ -16,6 +17,7 @@ export interface ChartPageProps {
   environments: ReadonlyArray<EnvInfo>
   activeEnvId: string | null
   currentPath: string
+  currentUserRole?: Role
 }
 
 const styles = {
@@ -68,7 +70,7 @@ const styles = {
  */
 export function ChartPage(handle: Handle<ChartPageProps>) {
   return () => {
-    const { activeEnvId, currentPath, environments, filters, fromMs, query, runs, toMs, truncated } = handle.props
+    const { activeEnvId, currentPath, currentUserRole, environments, filters, fromMs, query, runs, toMs, truncated } = handle.props
     return (
       <AppLayout
         title="Chart — Workflow Viz"
@@ -76,6 +78,7 @@ export function ChartPage(handle: Handle<ChartPageProps>) {
         environments={environments}
         activeEnvId={activeEnvId}
         currentPath={currentPath}
+        currentUserRole={currentUserRole}
       >
         <main mix={styles.container}>
           <header mix={styles.headerRow}>

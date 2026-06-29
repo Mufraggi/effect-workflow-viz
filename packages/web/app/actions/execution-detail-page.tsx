@@ -1,3 +1,4 @@
+import type { Role } from "@template/domain/auth/Role"
 import type { RunDetail } from "@template/domain/run/RunDetail"
 import { findCauseLeaf } from "@template/domain/workflow/decode/exit"
 import { getOutputCause, unwrapWorkflowResult } from "@template/domain/workflow/decode/workflow"
@@ -211,11 +212,12 @@ export interface ExecutionDetailPageProps {
   environments?: ReadonlyArray<{ id: string; name: string; isDefault: boolean }>
   activeEnvId?: string | null
   currentPath?: string
+  currentUserRole?: Role
 }
 
 export function ExecutionDetailPage(handle: Handle<ExecutionDetailPageProps>) {
   return (): RemixNode => {
-    const { activeEnvId, currentPath, environments, run } = handle.props
+    const { activeEnvId, currentPath, currentUserRole, environments, run } = handle.props
     const exit = decodeExit(run)
 
     return (
@@ -225,6 +227,7 @@ export function ExecutionDetailPage(handle: Handle<ExecutionDetailPageProps>) {
         environments={environments ?? []}
         activeEnvId={activeEnvId ?? null}
         currentPath={currentPath ?? "/"}
+        currentUserRole={currentUserRole}
       >
         <main mix={d.container}>
           <a mix={d.back} href={routes.executions.href()}>← Back to executions</a>

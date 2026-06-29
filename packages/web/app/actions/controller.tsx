@@ -25,6 +25,15 @@ import { createController } from "remix/router"
 import { assetServer } from "../asset-server.js"
 import { resolveClientIp } from "../auth/client-ip.js"
 import { requireAuthRedirect, setupGuard } from "../auth/guards.js"
+import { policyUse } from "../auth/policy.js"
+import type { Role } from "../../../domain/src/auth/Role.js"
+
+// Safely extract the current user's role from the request context.
+// requireAuthRedirect guarantees auth.ok at runtime for guarded routes.
+const currentRole = (auth: unknown): Role | undefined => {
+  const a = auth as { ok: boolean; identity?: { role: Role } } | undefined
+  return a?.ok ? a.identity?.role : undefined
+}
 import { passwordProvider } from "../auth/provider.js"
 import { runtime } from "../data/runtime.js"
 import { routes } from "../routes.js"
@@ -60,11 +69,11 @@ const setupSchema = f.object({
 const createUserSchema = f.object({
   email: f.field(s.string().pipe(emailCheck())),
   password: f.field(s.string().pipe(minLength(8))),
-  role: f.field(s.union([s.literal("admin"), s.literal("user")]))
+  role: f.field(s.union([s.literal("admin"), s.literal("user"), s.literal("readonly"), s.literal("guest")]))
 })
 const updateUserSchema = f.object({
   id: f.field(s.string().pipe(minLength(1))),
-  role: f.field(s.union([s.literal("admin"), s.literal("user")])),
+  role: f.field(s.union([s.literal("admin"), s.literal("user"), s.literal("readonly"), s.literal("guest")])),
   password: f.field(s.defaulted(s.string(), ""))
 })
 const deleteUserSchema = f.object({
@@ -468,7 +477,7 @@ export default createController(routes, {
     // GET /select-env — switch active environment (stored in session).
     // Accepts `?envId=xxx&returnTo=...` from a GET form submission.
     selectEnv: {
-      middleware: protect,
+      middleware: [...protect, policyUse("cluster","selectEnv")],
       async handler(context) {
         const envId = context.url.searchParams.get("envId")
         if (!envId) return redirect(routes.home.href(), 303)
@@ -491,8 +500,8 @@ export default createController(routes, {
 
     // GET / — server-rendered Runs page; the table hydrates for "Load more".
     home: {
-      middleware: protect,
-      async handler({ render, session, url }) {
+      middleware: [...protect, policyUse("workflow","list")],
+      async handler({ render, session, url, auth }) {
         const clean = cleanFilterUrl(url, routes.home.href())
         if (clean !== null) return redirect(clean, 303)
         const envId = session?.get?.("envId") as string | undefined
@@ -514,6 +523,7 @@ export default createController(routes, {
             environments={environments}
             activeEnvId={envId ?? null}
             currentPath={currentPath}
+            currentUserRole={currentRole(auth)}
           />
         )
       }
@@ -521,8 +531,8 @@ export default createController(routes, {
 
     // GET /chart — server-rendered scatter of runs (start × duration); hydrates.
     chart: {
-      middleware: protect,
-      async handler({ render, session, url }) {
+      middleware: [...protect, policyUse("workflow","list")],
+      async handler({ render, session, url, auth }) {
         const clean = cleanFilterUrl(url, routes.chart.href())
         if (clean !== null) return redirect(clean, 303)
         const envId = session?.get?.("envId") as string | undefined
@@ -563,6 +573,7 @@ export default createController(routes, {
             environments={environments}
             activeEnvId={envId ?? null}
             currentPath={currentPath}
+            currentUserRole={currentRole(auth)}
           />
         )
       }
@@ -571,7 +582,7 @@ export default createController(routes, {
     // /settings — configuration page. GET renders account info + logout + the
     // user list; POST (admin only) creates a new account.
     settings: {
-      middleware: protect,
+      middleware: [...protect, policyUse("config","settings")],
       async handler(context) {
         // requireAuthRedirect guarantees `ok` at runtime; narrow for the type.
         if (!context.auth.ok) return redirect(routes.login.href(), 303)
@@ -579,7 +590,6 @@ export default createController(routes, {
         const isAdmin = currentUser.role === "admin"
 
         if (context.method === "POST") {
-          if (!isAdmin) return new Response("Forbidden", { status: 403 })
           const form = context.get(FormData)
           const intent = String(form?.get("intent") ?? "create")
           const ip = resolveClientIp(context.request)
@@ -618,7 +628,7 @@ export default createController(routes, {
               return flashTo("error", "Enter a valid role (and an 8+ character password if changing it).")
             }
             const targetId = UserId.make(parsed.value.id)
-            const newRole = parsed.value.role === "admin" ? "admin" : "user"
+            const newRole = parsed.value.role as Role
             const newPassword = parsed.value.password
             if (newPassword !== "" && newPassword.length < 8) {
               return flashTo("error", "Password must be at least 8 characters.")
@@ -732,7 +742,7 @@ export default createController(routes, {
           }
           const email = decodeEmail(parsed.value.email)
           if (Option.isNone(email)) return flashTo("error", "Enter a valid email address.")
-          const role = parsed.value.role === "admin" ? "admin" : "user"
+          const role = parsed.value.role as Role
           const outcome = await runtime.runPromise(
             Effect.gen(function*() {
               const repo = yield* AuthRepository
@@ -804,6 +814,7 @@ export default createController(routes, {
               isDefault: e.isDefault
             }))}
             activeEnvId={envId ?? null}
+            currentUserRole={currentUser.role}
             tab={context.url.searchParams.get("tab") || "account"}
             error={error ?? null}
             success={success ?? null}
@@ -824,7 +835,7 @@ export default createController(routes, {
 
     // GET /runs — paginated list as JSON; consumed by the hydrated "Load more".
     runs: {
-      middleware: protect,
+      middleware: [...protect, policyUse("workflow","list")],
       async handler({ session, url }) {
         const envId = session?.get?.("envId") as string | undefined
         const page = await loadRuns(url, envId ?? null)
@@ -834,8 +845,8 @@ export default createController(routes, {
 
     // GET /runs/:messageId — server-rendered run detail page.
     runShow: {
-      middleware: protect,
-      async handler({ params, render, session, url }) {
+      middleware: [...protect, policyUse("workflow","detail")],
+      async handler({ params, render, session, url, auth }) {
         const messageId = decodeMessageId(params.messageId)
         const envId = session?.get?.("envId") as string | undefined
 
@@ -858,6 +869,7 @@ export default createController(routes, {
             environments={environments}
             activeEnvId={envId ?? null}
             currentPath={currentPath}
+            currentUserRole={currentRole(auth)}
           />
         )
       }
@@ -865,7 +877,7 @@ export default createController(routes, {
 
     // GET /runs/:messageId/children — sibling runs sharing the trace.
     runChildren: {
-      middleware: protect,
+      middleware: [...protect, policyUse("workflow","detail")],
       async handler({ params, session }) {
         const messageId = decodeMessageId(params.messageId)
         const envId = session?.get?.("envId") as string | undefined
@@ -883,7 +895,7 @@ export default createController(routes, {
 
     // GET /environments — JSON list of all configured environments.
     environments: {
-      middleware: protect,
+      middleware: [...protect, policyUse("config","environments")],
       async handler() {
         const envs = await runWithEnvs((r) => r.list)
         return Response.json(envs)
@@ -892,8 +904,8 @@ export default createController(routes, {
 
     // GET /overview — Cluster Overview page with live data from DB.
     overview: {
-      middleware: protect,
-      async handler({ render, session, url }) {
+      middleware: [...protect, policyUse("cluster","overview")],
+      async handler({ render, session, url, auth }) {
         const envId = session?.get?.("envId") as string | undefined
         const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
           id: e.id,
@@ -917,6 +929,7 @@ export default createController(routes, {
             environments={environments}
             activeEnvId={envId ?? null}
             currentPath={currentPath}
+            currentUserRole={currentRole(auth)}
           />
         )
       }
@@ -924,8 +937,8 @@ export default createController(routes, {
 
     // GET /shards — Dedicated shard distribution page.
     shards: {
-      middleware: protect,
-      async handler({ render, session, url }) {
+      middleware: [...protect, policyUse("cluster","shards")],
+      async handler({ render, session, url, auth }) {
         const envId = session?.get?.("envId") as string | undefined
         const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
           id: e.id,
@@ -949,6 +962,7 @@ export default createController(routes, {
             environments={environments}
             activeEnvId={envId ?? null}
             currentPath={currentPath}
+            currentUserRole={currentRole(auth)}
           />
         )
       }
@@ -956,8 +970,8 @@ export default createController(routes, {
 
     // GET /nodes — Dedicated nodes page (runner status, shards per node).
     nodes: {
-      middleware: protect,
-      async handler({ render, session, url }) {
+      middleware: [...protect, policyUse("cluster","nodes")],
+      async handler({ render, session, url, auth }) {
         const envId = session?.get?.("envId") as string | undefined
         const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
           id: e.id,
@@ -981,6 +995,7 @@ export default createController(routes, {
             environments={environments}
             activeEnvId={envId ?? null}
             currentPath={currentPath}
+            currentUserRole={currentRole(auth)}
           />
         )
       }
@@ -988,8 +1003,8 @@ export default createController(routes, {
 
     // GET /executions — Read-only workflow executions list.
     executions: {
-      middleware: protect,
-      async handler({ render, session, url }) {
+      middleware: [...protect, policyUse("workflow","list")],
+      async handler({ render, session, url, auth }) {
         const envId = session?.get?.("envId") as string | undefined
         const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
           id: e.id,
@@ -1013,6 +1028,7 @@ export default createController(routes, {
             environments={environments}
             activeEnvId={envId ?? null}
             currentPath={currentPath}
+            currentUserRole={currentRole(auth)}
           />
         )
       }
@@ -1020,8 +1036,8 @@ export default createController(routes, {
 
     // GET /executions/:executionId — read-only detail for one execution.
     executionShow: {
-      middleware: protect,
-      async handler({ params, render, session, url }) {
+      middleware: [...protect, policyUse("workflow","detail")],
+      async handler({ params, render, session, url, auth }) {
         const envId = session?.get?.("envId") as string | undefined
         if (!envId) return new Response("No environment selected", { status: 404 })
 
@@ -1042,6 +1058,7 @@ export default createController(routes, {
             environments={environments}
             activeEnvId={envId}
             currentPath={currentPath}
+            currentUserRole={currentRole(auth)}
           />
         )
       }
@@ -1049,7 +1066,7 @@ export default createController(routes, {
 
     // GET /overview/stream — SSE endpoint for live overview snapshots (poll DB every 10s).
     overviewStream: {
-      middleware: protect,
+      middleware: [...protect, policyUse("cluster","overview")],
       async handler({ request, session }) {
         const envId = session?.get?.("envId") as string | undefined
         const encoder = new TextEncoder()

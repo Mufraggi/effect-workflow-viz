@@ -1,3 +1,4 @@
+import type { Role } from "@template/domain/auth/Role"
 import { css, type Handle } from "remix/ui"
 import { type ExecutionRow, ExecutionsEntry } from "../assets/executions.entry.js"
 import { AppLayout, type EnvInfo } from "../components/layout/AppLayout.js"
@@ -10,6 +11,7 @@ export interface ExecutionsPageProps {
   environments: ReadonlyArray<EnvInfo>
   activeEnvId: string | null
   currentPath: string
+  currentUserRole?: Role
 }
 
 const s = {
@@ -46,7 +48,7 @@ const s = {
 
 export function ExecutionsPage(handle: Handle<ExecutionsPageProps>) {
   return () => {
-    const { activeEnvId, currentPath, environments, executions } = handle.props
+    const { activeEnvId, currentPath, currentUserRole, environments, executions } = handle.props
     return (
       <AppLayout
         title="Executions — Workflow Viz"
@@ -54,6 +56,7 @@ export function ExecutionsPage(handle: Handle<ExecutionsPageProps>) {
         environments={environments}
         activeEnvId={activeEnvId}
         currentPath={currentPath}
+        currentUserRole={currentUserRole}
       >
         {!activeEnvId ?
           (

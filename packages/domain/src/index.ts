@@ -1,4 +1,6 @@
+
 export * as Pagination from "./Pagination.js"
+
 
 export * as UserId from "./UserId.js"
 
@@ -12,11 +14,25 @@ export * as UserId from "./UserId.js"
  */
 export * as ApiKey from "./auth/ApiKey.js"
 
+
 export * as ApiKeyErrors from "./auth/ApiKeyErrors.js"
+
 
 export * as AuthErrors from "./auth/AuthErrors.js"
 
+
 export * as AuthEvent from "./auth/AuthEvent.js"
+
+/**
+ * Phantom type representing an actor who has been authorized to perform
+ * `Action` on `Entity`. The type parameters exist only at compile time — the
+ * runtime value is a `RoleName`.
+ *
+ * The only way to construct an `AuthorizedActor` is via the internal
+ * `authorizedActor()` function, which is deliberately un-exported so that
+ * values of this type can only originate from the policy middleware.
+ */
+export * as AuthorizedActor from "./auth/AuthorizedActor.js"
 
 /**
  * A normalized (lower-cased, trimmed) email address.
@@ -25,6 +41,17 @@ export * as AuthEvent from "./auth/AuthEvent.js"
  * domain — since deliverability is enforced elsewhere, not by the schema.
  */
 export * as Email from "./auth/Email.js"
+
+/**
+ * The requester does not have permission to perform the given action on the
+ * given entity.
+ *
+ * Returned as HTTP 403 Forbidden — distinct from InvalidCredentials (401
+ * Unauthorized), so the caller can distinguish "not authenticated" from
+ * "authenticated but not allowed".
+ */
+export * as Forbidden from "./auth/Forbidden.js"
+
 
 export * as IpAddress from "./auth/IpAddress.js"
 
@@ -35,21 +62,34 @@ export * as IpAddress from "./auth/IpAddress.js"
 export * as Role from "./auth/Role.js"
 
 /**
+ * Branded string for policy-role comparisons. Runtime value is the same string
+ * as the DB role column, but the branded type prevents accidental mixing with
+ * raw strings outside of the policy system.
+ */
+export * as RoleName from "./auth/RoleName.js"
+
+/**
  * The public representation of an account — everything the app may freely hold
  * in memory or expose. The password hash is deliberately absent: it never
  * leaves the `AuthRepository`.
  */
 export * as User from "./auth/User.js"
 
+
 export * as MessageId from "./run/MessageId.js"
+
 
 export * as RunDetail from "./run/RunDetail.js"
 
+
 export * as RunId from "./run/RunId.js"
+
 
 export * as RunStatus from "./run/RunStatus.js"
 
+
 export * as RunSummary from "./run/RunSummary.js"
+
 
 export * as ShardId from "./run/ShardId.js"
 
@@ -69,11 +109,15 @@ export * as ShardId from "./run/ShardId.js"
  */
 export * as Snowflake from "./run/Snowflake.js"
 
+
 export * as TraceId from "./run/TraceId.js"
+
 
 export * as errors from "./run/errors.js"
 
+
 export * as WorkflowName from "./workflow/WorkflowName.js"
+
 
 export * as WorkflowReader from "./workflow/WorkflowReader.js"
 
@@ -83,6 +127,7 @@ export * as WorkflowReader from "./workflow/WorkflowReader.js"
  * (`error` for Fail, `defect` for Die, `fiberId` for Interrupt).
  */
 export * as exit from "./workflow/decode/exit.js"
+
 
 export * as status from "./workflow/decode/status.js"
 

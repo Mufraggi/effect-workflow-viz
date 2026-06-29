@@ -3,6 +3,9 @@ coverage/
 node_modules/
 .DS_Store
 tmp/
+
+# Local auth SQLite database (per-developer, not versioned)
+data/
 dist
 build/
 docs/

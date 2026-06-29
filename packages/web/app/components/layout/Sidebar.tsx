@@ -1,6 +1,8 @@
+import type { Role } from "@template/domain/auth/Role"
 import { css, type Handle, type RemixNode } from "remix/ui"
 import { routes } from "../../routes.js"
 import { tk } from "../../ui/tokens.js"
+import { canView } from "../../auth/ClusterPolicies.js"
 
 // ---------------------------------------------------------------------------
 // Inline SVG wrapper
@@ -117,6 +119,16 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { id: "alerts", label: "Alerts", icon: IconAlerts, section: "bottom" },
   { id: "settings", label: "Settings", icon: IconSettings, section: "bottom", href: routes.settings.href() }
 ]
+
+// Map nav item ids to policy entity/action pairs for role-based filtering.
+// Schedules and alerts are left out (kept visible for all roles).
+const navItemPolicy: Record<string, { entity: string; action: string } | undefined> = {
+  overview: { entity: "cluster", action: "overview" },
+  nodes: { entity: "cluster", action: "nodes" },
+  shards: { entity: "cluster", action: "shards" },
+  executions: { entity: "workflow", action: "list" },
+  settings: { entity: "config", action: "settings" }
+}
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -347,15 +359,27 @@ export function Sidebar(
     environments?: ReadonlyArray<{ id: string; name: string; isDefault: boolean }>
     activeEnvId?: string | null
     currentPath?: string
+    currentUserRole?: Role | null
   }>
 ) {
   return () => {
-    const { activeEnvId = null, activeItem, currentPath = "/", environments = [] } = handle.props
+    // UI only — backend is authoritative. Navigation items are hidden by role
+    // as a convenience, but every guarded handler enforces via authorize().
+    const { activeEnvId = null, activeItem, currentPath = "/", currentUserRole = null, environments = [] } = handle.props
 
     const currentEnv = environments.find((e) => e.id === activeEnvId)
     const hasEnvs = environments.length > 0
 
     const isLive = currentEnv !== undefined
+
+    // Filter nav items based on the current user's role.
+    const NAV_ITEMS_VISIBLE = currentUserRole !== null
+      ? NAV_ITEMS.filter((item) => {
+          const mapping = navItemPolicy[item.id]
+          if (!mapping) return true // items like schedules/alerts are unfiltered
+          return canView(currentUserRole, mapping.entity, mapping.action)
+        })
+      : NAV_ITEMS
 
     const renderNavItem = (item: NavItem) => {
       const isActive = item.id === activeItem && isLive
@@ -375,8 +399,8 @@ export function Sidebar(
       )
     }
 
-    const topItems = NAV_ITEMS.filter((i) => i.section !== "bottom")
-    const bottomItems = NAV_ITEMS.filter((i) => i.section === "bottom")
+    const topItems = NAV_ITEMS_VISIBLE.filter((i) => i.section !== "bottom")
+    const bottomItems = NAV_ITEMS_VISIBLE.filter((i) => i.section === "bottom")
 
     return (
       <aside mix={s.shell}>

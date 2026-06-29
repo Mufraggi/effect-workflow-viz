@@ -1,3 +1,4 @@
+import type { Role } from "@template/domain/auth/Role"
 import type { RunDetail } from "@template/domain/run/RunDetail"
 import type { RunStatus } from "@template/domain/run/RunStatus"
 import { findCauseLeaf } from "@template/domain/workflow/decode/exit"
@@ -138,11 +139,12 @@ export interface RunDetailPageProps {
   environments?: ReadonlyArray<{ id: string; name: string; isDefault: boolean }>
   activeEnvId?: string | null
   currentPath?: string
+  currentUserRole?: Role
 }
 
 export function RunDetailPage(handle: Handle<RunDetailPageProps>) {
   return () => {
-    const { activeEnvId, currentPath, environments, run } = handle.props
+    const { activeEnvId, currentPath, currentUserRole, environments, run } = handle.props
     const parentTime = run.startedAt === null ? null : new Date(run.startedAt).getTime()
     const children = [...run.children].sort((a, b) => {
       const at = a.startedAt === null ? Infinity : new Date(a.startedAt).getTime()
@@ -157,6 +159,7 @@ export function RunDetailPage(handle: Handle<RunDetailPageProps>) {
         environments={environments ?? []}
         activeEnvId={activeEnvId ?? null}
         currentPath={currentPath ?? "/"}
+        currentUserRole={currentUserRole}
       >
         <main mix={d.container}>
           <nav mix={d.nav}>

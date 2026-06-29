@@ -1,3 +1,4 @@
+import type { Role } from "@template/domain/auth/Role"
 import { css, type Handle } from "remix/ui"
 import { ShardsEntry } from "../assets/shards.entry.js"
 import { AppLayout, type EnvInfo } from "../components/layout/AppLayout.js"
@@ -9,6 +10,7 @@ export interface ShardsPageProps {
   environments: ReadonlyArray<EnvInfo>
   activeEnvId: string | null
   currentPath: string
+  currentUserRole?: Role
 }
 
 const s = {
@@ -50,7 +52,7 @@ const s = {
  */
 export function ShardsPage(handle: Handle<ShardsPageProps>) {
   return () => {
-    const { activeEnvId, currentPath, environments, initialSnapshot } = handle.props
+    const { activeEnvId, currentPath, currentUserRole, environments, initialSnapshot } = handle.props
     return (
       <AppLayout
         title="Shards — Workflow Viz"
@@ -58,6 +60,7 @@ export function ShardsPage(handle: Handle<ShardsPageProps>) {
         environments={environments}
         activeEnvId={activeEnvId}
         currentPath={currentPath}
+        currentUserRole={currentUserRole}
       >
         {!activeEnvId ?
           (

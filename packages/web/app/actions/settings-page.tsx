@@ -1,3 +1,4 @@
+import type { Role } from "@template/domain/auth/Role"
 import { css, type Handle } from "remix/ui"
 import { AppLayout } from "../components/layout/AppLayout.js"
 import { routes } from "../routes.js"
@@ -53,6 +54,7 @@ export interface SettingsPageProps {
   tab: string
   error: string | null
   success: string | null
+  currentUserRole?: Role
 }
 
 // ── Shared styles ──────────────────────────────────────────────────────────
@@ -222,6 +224,7 @@ export function SettingsPage(handle: Handle<SettingsPageProps>) {
       apiKeys,
       createdKey,
       createdKeyName,
+      currentUserRole,
       email,
       environments,
       error,
@@ -243,6 +246,7 @@ export function SettingsPage(handle: Handle<SettingsPageProps>) {
         activeNav="settings"
         environments={envInfo}
         activeEnvId={activeEnvId}
+        currentUserRole={currentUserRole}
       >
         <main mix={s.container}>
           <a mix={s.back} href={routes.home.href()}>← Back to runs</a>
@@ -296,6 +300,8 @@ export function SettingsPage(handle: Handle<SettingsPageProps>) {
                   <select mix={s.small} name="role">
                     <option value="user" selected={u.role === "user"}>user</option>
                     <option value="admin" selected={u.role === "admin"}>admin</option>
+                    <option value="readonly" selected={u.role === "readonly"}>readonly</option>
+                    <option value="guest" selected={u.role === "guest"}>guest</option>
                   </select>
                   <input
                     mix={s.small}
@@ -334,6 +340,8 @@ export function SettingsPage(handle: Handle<SettingsPageProps>) {
                   <select mix={s.input} name="role">
                     <option value="user">user</option>
                     <option value="admin">admin</option>
+                    <option value="readonly">readonly</option>
+                    <option value="guest">guest</option>
                   </select>
                 </div>
                 <button mix={[a.btn, a.btnPrimary]} type="submit" name="intent" value="create">
