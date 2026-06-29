@@ -1,5 +1,6 @@
 import { AuthRepository } from "@template/auth/AuthRepository"
 import type { User } from "@template/domain/auth/User"
+import { EnvironmentRepository } from "@template/environments/EnvironmentRepository"
 import { Effect } from "effect"
 import { requireAuth } from "remix/middleware/auth"
 import { redirect } from "remix/response/redirect"
@@ -23,6 +24,31 @@ const countUsers = () =>
 export function setupGuard(): Middleware {
   return async (_context: RequestContext, next) => {
     if ((await countUsers()) === 0) return redirect(routes.setup.href(), 303)
+    return next()
+  }
+}
+
+/**
+ * Seeds the session with the default environment when none is selected yet.
+ *
+ * Runs inside the `session()` scope (set on `protect`, after auth), so the write
+ * is persisted to the cookie on the way out — exactly like the `selectEnv`
+ * handler. Once seeded, every handler reads `session.get("envId")` and loads its
+ * data, and the sidebar shows the default selected. An explicit choice via
+ * `/select-env` overwrites it and takes precedence afterwards.
+ */
+export function seedDefaultEnv(): Middleware {
+  return async (context: RequestContext, next) => {
+    // session() runs earlier in the stack; cast to reach it (same approach as policyUse).
+    const session = (context as unknown as {
+      session: { get: (key: string) => unknown; set: (key: string, value: unknown) => void }
+    }).session
+    if (!session.get("envId")) {
+      const def = await runtime.runPromise(
+        Effect.flatMap(EnvironmentRepository, (r) => r.getDefault)
+      )
+      if (def) session.set("envId", def.id)
+    }
     return next()
   }
 }
