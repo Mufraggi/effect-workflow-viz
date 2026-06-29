@@ -25,7 +25,7 @@ import { redirect } from "remix/response/redirect"
 import { createController } from "remix/router"
 import { assetServer } from "../asset-server.js"
 import { resolveClientIp } from "../auth/client-ip.js"
-import { requireAuthRedirect, setupGuard } from "../auth/guards.js"
+import { requireAuthRedirect, seedDefaultEnv, setupGuard } from "../auth/guards.js"
 import { policyUse } from "../auth/policy.js"
 import { passwordProvider } from "../auth/provider.js"
 import { runtime } from "../data/runtime.js"
@@ -335,8 +335,9 @@ const fmtAt = (d: Date): string => d.toISOString().slice(0, 19).replace("T", " "
 const safeReturnTo = (value: string | null): string =>
   value !== null && value.startsWith("/") && !value.startsWith("//") ? value : routes.home.href()
 
-// Protect the workflow-viewing routes: force first-run setup, then require auth.
-const protect = [setupGuard(), requireAuthRedirect()] as const
+// Protect the workflow-viewing routes: force first-run setup, require auth, then
+// seed the default environment into the session when none is selected yet.
+const protect = [setupGuard(), requireAuthRedirect(), seedDefaultEnv()] as const
 
 /**
  * Root controller — owns every direct leaf route in `routes`. The workflow

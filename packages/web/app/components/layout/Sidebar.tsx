@@ -1,5 +1,6 @@
 import type { Role } from "@template/domain/auth/Role"
 import { css, type Handle, type RemixNode } from "remix/ui"
+import { EnvSelector } from "../../assets/env-selector.entry.js"
 import { canView } from "../../auth/ClusterPolicies.js"
 import { routes } from "../../routes.js"
 import { tk } from "../../ui/tokens.js"
@@ -231,37 +232,12 @@ const s = {
     "&:hover": { textDecoration: "underline" }
   }),
 
-  // ── Environment selector form ───────────────────────────────────────────
+  // ── Environment selector CTA (no-env case) ───────────────────────────────
   envForm: css({
     display: "flex",
     alignItems: "center",
     gap: ".35rem",
     padding: ".25rem 1rem .5rem"
-  }),
-  envSelect: css({
-    flex: 1,
-    minWidth: 0,
-    padding: ".3rem .35rem",
-    border: `1px solid ${tk.border}`,
-    borderRadius: tk.radiusSm,
-    background: tk.bg,
-    color: tk.fg,
-    fontFamily: tk.fontSans,
-    fontSize: ".72rem",
-    cursor: "pointer"
-  }),
-  envBtn: css({
-    padding: ".3rem .45rem",
-    border: `1px solid ${tk.border}`,
-    borderRadius: tk.radiusSm,
-    background: tk.bg,
-    color: tk.mutedFg,
-    fontFamily: tk.fontSans,
-    fontSize: ".72rem",
-    cursor: "pointer",
-    lineHeight: 1,
-    flexShrink: 0,
-    "&:hover": { background: tk.hoverBg, color: tk.fg }
   }),
 
   // ── Nav sections ────────────────────────────────────────────────────────
@@ -441,19 +417,11 @@ export function Sidebar(
 
         {/* ── Environment selector / CTA ── */}
         {hasEnvs && (
-          <form mix={s.envForm} method="get" action="/select-env">
-            <input type="hidden" name="returnTo" value={currentPath} />
-            <select mix={s.envSelect} name="envId">
-              {!activeEnvId && <option value="">— Select —</option>}
-              {environments.map((env) => (
-                <option value={env.id} selected={env.id === activeEnvId}>
-                  {env.name}
-                  {env.isDefault ? " ★" : ""}
-                </option>
-              ))}
-            </select>
-            <button mix={s.envBtn} type="submit">↻</button>
-          </form>
+          <EnvSelector
+            environments={[...environments]}
+            activeEnvId={activeEnvId}
+            currentPath={currentPath}
+          />
         )}
         {!hasEnvs && (
           <div mix={s.envForm}>
