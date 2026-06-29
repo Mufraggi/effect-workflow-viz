@@ -159,9 +159,6 @@ importers:
 
   packages/domain:
     dependencies:
-      '@effect/platform':
-        specifier: latest
-        version: 0.96.2(effect@3.21.3)
       effect:
         specifier: 3.21.3
         version: 3.21.3
