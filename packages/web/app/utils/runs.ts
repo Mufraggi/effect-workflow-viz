@@ -48,7 +48,9 @@ export const fmtDate = (value: string | null): string => {
  */
 export const fmtRelative = (value: string | null, nowMs: number): string => {
   if (!value) return "—"
-  const d = new Date(value.replace(" ", "T"))
+  const iso = value.replace(" ", "T")
+  const withZ = /(?:Z|[+-]\d{2}:?\d{2})$/.test(iso) ? iso : `${iso}Z`
+  const d = new Date(withZ)
   if (Number.isNaN(d.getTime())) return value
   const diff = nowMs - d.getTime()
   if (diff < 60_000) return "just now"

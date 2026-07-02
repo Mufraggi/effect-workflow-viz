@@ -14,7 +14,7 @@ const PLOT_H = HEIGHT - PAD.top - PAD.bottom
 
 const formatHour = (epochMs: number): string => {
   const d = new Date(epochMs)
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`
 }
 
 const buildLinePath = (
