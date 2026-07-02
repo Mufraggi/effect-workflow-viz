@@ -137,7 +137,7 @@ export function ActivityChart(handle: Handle<{ data: ReadonlyArray<ActivityPoint
           {ticks.map((t) => {
             const y = scaleY(t)
             return (
-              <g key={t}>
+              <g key={`tick-${t}`}>
                 <line
                   x1={PAD.left}
                   y1={y}
@@ -166,7 +166,7 @@ export function ActivityChart(handle: Handle<{ data: ReadonlyArray<ActivityPoint
             const x = PAD.left + i * stepX
             return (
               <text
-                key={idx}
+                key={`xlabel-${idx}`}
                 x={x}
                 y={HEIGHT - 6}
                 textAnchor="middle"
