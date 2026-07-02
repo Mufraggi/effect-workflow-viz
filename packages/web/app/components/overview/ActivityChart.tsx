@@ -12,9 +12,14 @@ const PAD = { top: 16, right: 16, bottom: 28, left: 40 }
 const PLOT_W = WIDTH - PAD.left - PAD.right
 const PLOT_H = HEIGHT - PAD.top - PAD.bottom
 
-const formatHour = (epochMs: number): string => {
+// `local=false` (UTC) is used for SSR and the first hydration render so the
+// markup is deterministic across server/client; after mount we switch to the
+// viewer's local timezone (see the queueTask in the component below).
+const formatHour = (epochMs: number, local: boolean): string => {
   const d = new Date(epochMs)
-  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`
+  const h = local ? d.getHours() : d.getUTCHours()
+  const m = local ? d.getMinutes() : d.getUTCMinutes()
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
 }
 
 const buildLinePath = (
@@ -48,6 +53,17 @@ const buildAreaPath = (
 // ---------------------------------------------------------------------------
 
 export function ActivityChart(handle: Handle<{ data: ReadonlyArray<ActivityPoint> }>) {
+  // Server (UTC) can't know the browser's timezone, so the x-axis renders in UTC
+  // for SSR + the first hydration render (deterministic, no hydration drift), then
+  // flips to the viewer's local time. queueTask runs after that first render.
+  let localTz = false
+  if (typeof document !== "undefined") {
+    handle.queueTask(() => {
+      localTz = true
+      handle.update()
+    })
+  }
+
   return () => {
     const { data } = handle.props
     if (data.length < 2) {
@@ -158,7 +174,7 @@ export function ActivityChart(handle: Handle<{ data: ReadonlyArray<ActivityPoint
                 fontSize="9"
                 fontFamily={tk.fontMono}
               >
-                {formatHour(p.t)}
+                {formatHour(p.t, localTz)}
               </text>
             )
           })}
