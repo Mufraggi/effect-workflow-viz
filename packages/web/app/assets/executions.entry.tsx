@@ -1,4 +1,4 @@
-import { clientEntry, css, type EntryComponent, type Handle, type SerializableProps } from "remix/ui"
+import { clientEntry, css, type EntryComponent, type Handle, on, type SerializableProps } from "remix/ui"
 import { routes } from "../routes.js"
 import { tk } from "../ui/tokens.js"
 import { fmtRelative } from "../utils/runs.js"
@@ -20,9 +20,15 @@ export type ExecutionRow = {
 
 export interface ExecutionsEntryProps extends SerializableProps {
   executions: Array<ExecutionRow>
+  nextCursor: string | null
   // Server render time; threaded into relative-time formatting so SSR and
   // hydration produce identical text. See `fmtRelative` in utils/runs.ts.
   nowMs: number
+}
+
+interface ExecutionsPage {
+  items: Array<ExecutionRow>
+  nextCursor: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -169,6 +175,20 @@ const s = {
     maxWidth: "24rem",
     margin: "0 auto",
     lineHeight: 1.6
+  }),
+  loadMore: css({
+    marginTop: "1rem",
+    padding: ".5rem 1rem",
+    border: `1px solid ${tk.border}`,
+    borderRadius: tk.radiusSm,
+    background: tk.card,
+    color: "inherit",
+    font: "inherit",
+    fontSize: ".85rem",
+    fontWeight: 500,
+    cursor: "pointer",
+    "&:hover": { background: tk.hoverBg },
+    "&:disabled": { opacity: 0.5, cursor: "default" }
   })
 }
 
@@ -230,7 +250,29 @@ const truncateId = (id: string): string => id.length > 16 ? `${id.slice(0, 8)}â€
 export const ExecutionsEntry: EntryComponent<ExecutionsEntryProps> = clientEntry(
   import.meta.url,
   function ExecutionsEntry(handle: Handle<ExecutionsEntryProps>) {
-    const { executions, nowMs } = handle.props
+    let executions: Array<ExecutionRow> = [...handle.props.executions]
+    let cursor: string | null = handle.props.nextCursor
+    let loading = false
+    const { nowMs } = handle.props
+
+    const loadMore = async (signal: AbortSignal) => {
+      if (cursor === null || loading) return
+      loading = true
+      handle.update()
+      try {
+        const url = `${routes.executions.href()}?before=${encodeURIComponent(cursor)}`
+        const res = await fetch(url, { headers: { accept: "application/json" }, signal })
+        const data = (await res.json()) as ExecutionsPage
+        if (signal.aborted) return
+        executions = [...executions, ...data.items]
+        cursor = data.nextCursor
+      } finally {
+        if (!signal.aborted) {
+          loading = false
+          handle.update()
+        }
+      }
+    }
 
     return () => {
       if (executions.length === 0) {
@@ -262,7 +304,6 @@ export const ExecutionsEntry: EntryComponent<ExecutionsEntryProps> = clientEntry
 
       return (
         <main mix={s.container}>
-          {/* Title */}
           <div mix={s.headerRow}>
             <div>
               <h1 mix={s.h1}>Workflow Executions</h1>
@@ -272,7 +313,6 @@ export const ExecutionsEntry: EntryComponent<ExecutionsEntryProps> = clientEntry
             </div>
           </div>
 
-          {/* Status legend with counts */}
           <div mix={s.statusLegend}>
             <div mix={s.legendItem}>
               <span mix={s.legendDot} style={{ background: "#22c55e" }} />
@@ -292,7 +332,6 @@ export const ExecutionsEntry: EntryComponent<ExecutionsEntryProps> = clientEntry
             </div>
           </div>
 
-          {/* Table */}
           <table mix={s.table}>
             <thead>
               <tr>
@@ -329,6 +368,18 @@ export const ExecutionsEntry: EntryComponent<ExecutionsEntryProps> = clientEntry
               ))}
             </tbody>
           </table>
+
+          {cursor !== null && (
+            <p>
+              <button
+                type="button"
+                mix={[s.loadMore, on("click", (_event, signal) => loadMore(signal))]}
+                disabled={loading}
+              >
+                {loading ? "Loadingâ€¦" : "Load more"}
+              </button>
+            </p>
+          )}
         </main>
       )
     }

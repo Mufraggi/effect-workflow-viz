@@ -297,36 +297,23 @@ const loadOverviewSnapshot = (envId: string) =>
     })
   )
 
-// ── Executions loader — list all runs without pagination ──────────────
+// ── Executions loader — cursor-based pagination ───────────────────────
 
-const encodeRunsFlat = Schema.encodeSync(Schema.Array(RunSummary))
-
-// PageRequest caps a single page at 200, so page through (passing `before`)
-// up to EXECUTIONS_MAX, mirroring loadChartRunsWithEnv.
-const EXECUTIONS_MAX = 1000
-const EXECUTIONS_PAGE = 200
-
-const loadExecutionsWithEnv = (envId: string) =>
-  runtime.runPromise(
+const loadExecutions = (url: URL, envId: string | null) => {
+  if (!envId) return Promise.resolve({ items: [] as ReadonlyArray<RunSummary>, nextCursor: null })
+  const limitRaw = Number(url.searchParams.get("limit"))
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 200) : 50
+  const before = url.searchParams.get("before")
+  const page = new PageRequest({ limit, before })
+  return runtime.runPromise(
     Effect.gen(function*() {
       const db = yield* DbManager
       const pg = yield* db.getClient(envId)
       const reader = makeWorkflowReader(pg)
-      const items: Array<RunSummary> = []
-      let before: string | null = null
-      while (items.length < EXECUTIONS_MAX) {
-        const limit = Math.min(EXECUTIONS_PAGE, EXECUTIONS_MAX - items.length)
-        const page: { items: ReadonlyArray<RunSummary>; nextCursor: string | null } = yield* reader.listRuns(
-          {},
-          new PageRequest({ limit, before })
-        )
-        for (const item of page.items) items.push(item)
-        before = page.nextCursor
-        if (before === null || page.items.length === 0) break
-      }
-      return encodeRunsFlat(items)
+      return yield* reader.listRuns({}, page)
     })
   )
+}
 
 // Short server-side date format for the settings activity log (UTC).
 const fmtAt = (d: Date): string => d.toISOString().slice(0, 19).replace("T", " ")
@@ -1003,10 +990,18 @@ export default createController(routes, {
     },
 
     // GET /executions — Read-only workflow executions list.
+    // When `?before={cursor}` is present the handler answers with JSON so the
+    // hydrated client-entry can "Load more" without a full page navigation.
     executions: {
       middleware: [...protect, policyUse("workflow", "list")],
       async handler({ auth, render, session, url }) {
         const envId = session?.get?.("envId") as string | undefined
+
+        if (url.searchParams.has("before")) {
+          const page = await loadExecutions(url, envId ?? null)
+          return Response.json(encodeRuns(page))
+        }
+
         const environments = (await runWithEnvs((r) => r.list)).map((e) => ({
           id: e.id,
           name: e.name,
@@ -1014,9 +1009,13 @@ export default createController(routes, {
         }))
 
         let executions = null
+        let nextCursor: string | null = null
         if (envId) {
           try {
-            executions = await loadExecutionsWithEnv(envId)
+            const page = await loadExecutions(url, envId)
+            const encoded = encodeRuns(page)
+            executions = encoded.items
+            nextCursor = encoded.nextCursor
           } catch {
             // Load failed
           }
@@ -1026,6 +1025,7 @@ export default createController(routes, {
         return render(
           <ExecutionsPage
             executions={executions}
+            nextCursor={nextCursor}
             environments={environments}
             activeEnvId={envId ?? null}
             currentPath={currentPath}

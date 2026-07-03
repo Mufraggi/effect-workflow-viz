@@ -8,6 +8,7 @@ export type { ExecutionRow }
 
 export interface ExecutionsPageProps {
   executions: ReadonlyArray<ExecutionRow> | null
+  nextCursor: string | null
   environments: ReadonlyArray<EnvInfo>
   activeEnvId: string | null
   currentPath: string
@@ -48,7 +49,7 @@ const s = {
 
 export function ExecutionsPage(handle: Handle<ExecutionsPageProps>) {
   return () => {
-    const { activeEnvId, currentPath, currentUserRole, environments, executions } = handle.props
+    const { activeEnvId, currentPath, currentUserRole, environments, executions, nextCursor } = handle.props
     return (
       <AppLayout
         title="Executions — Workflow Viz"
@@ -78,7 +79,7 @@ export function ExecutionsPage(handle: Handle<ExecutionsPageProps>) {
               </p>
             </div>
           ) :
-          <ExecutionsEntry executions={[...executions]} nowMs={Date.now()} />}
+          <ExecutionsEntry executions={[...executions]} nextCursor={nextCursor} nowMs={Date.now()} />}
       </AppLayout>
     )
   }
