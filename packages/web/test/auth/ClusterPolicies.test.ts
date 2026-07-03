@@ -1,4 +1,3 @@
-import { Forbidden as ForbiddenCls } from "@template/domain/auth/Forbidden"
 import { Effect } from "effect"
 import { describe, expect, it } from "vitest"
 import { authorize, canView } from "../../app/auth/ClusterPolicies.js"
