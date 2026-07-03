@@ -771,9 +771,7 @@ export default createController(routes, {
         )
         const adminCount = users.filter((u) => u.role === "admin").length
         const envId = context.session.get("envId") as string | undefined
-        const environments = isAdmin
-          ? await runWithEnvs((r) => r.list)
-          : []
+        const environments = await runWithEnvs((r) => r.list)
         const apiKeys = await runtime.runPromise(
           Effect.gen(function*() {
             const repo = yield* ApiKeyRepository
