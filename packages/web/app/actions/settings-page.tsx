@@ -448,7 +448,9 @@ export function SettingsPage(handle: Handle<SettingsPageProps>) {
                   {!isGuestOrReadonly && (
                     <form method="post" action={routes.settings.href()}>
                       <input type="hidden" name="keyId" value={k.id} />
-                      <button mix={[s.btnSm, s.btnDanger]} type="submit" name="intent" value="revoke-key">Revoke</button>
+                      <button mix={[s.btnSm, s.btnDanger]} type="submit" name="intent" value="revoke-key">
+                        Revoke
+                      </button>
                     </form>
                   )}
                 </div>

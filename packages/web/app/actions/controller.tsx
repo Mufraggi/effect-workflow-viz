@@ -765,8 +765,8 @@ export default createController(routes, {
             activity: isAdmin
               ? r.listRecentAudit(25)
               : isGuestOrReadonly
-                ? r.listRecentAuditByUser(currentUser.id, 25)
-                : Effect.succeed([])
+              ? r.listRecentAuditByUser(currentUser.id, 25)
+              : Effect.succeed([])
           })
         )
         const adminCount = users.filter((u) => u.role === "admin").length
