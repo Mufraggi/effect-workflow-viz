@@ -35,7 +35,7 @@ export const clusterPolicies = {
     types: [roleNames.admin, roleNames.user, roleNames.readonly, roleNames.guest]
   },
   config: {
-    settings: [roleNames.admin, roleNames.user],
+    settings: [roleNames.admin, roleNames.user, roleNames.readonly, roleNames.guest],
     users: [roleNames.admin, roleNames.user],
     environments: [roleNames.admin, roleNames.user]
   }

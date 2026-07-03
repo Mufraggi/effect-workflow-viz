@@ -576,8 +576,13 @@ export default createController(routes, {
         if (!context.auth.ok) return redirect(routes.login.href(), 303)
         const currentUser = context.auth.identity
         const isAdmin = currentUser.role === "admin"
+        const isGuestOrReadonly = currentUser.role === "guest" || currentUser.role === "readonly"
 
         if (context.method === "POST") {
+          if (isGuestOrReadonly) {
+            context.session.flash("error", "You don't have permission to perform this action.")
+            return redirect(routes.settings.href(), 303)
+          }
           const form = context.get(FormData)
           const intent = String(form?.get("intent") ?? "create")
           const ip = resolveClientIp(context.request)
@@ -756,8 +761,12 @@ export default createController(routes, {
 
         const { activity, users } = await withAuth((r) =>
           Effect.all({
-            users: r.listUsers,
-            activity: isAdmin ? r.listRecentAudit(25) : Effect.succeed([])
+            users: isAdmin ? r.listUsers : Effect.succeed([]),
+            activity: isAdmin
+              ? r.listRecentAudit(25)
+              : isGuestOrReadonly
+                ? r.listRecentAuditByUser(currentUser.id, 25)
+                : Effect.succeed([])
           })
         )
         const adminCount = users.filter((u) => u.role === "admin").length

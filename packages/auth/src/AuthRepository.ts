@@ -239,6 +239,18 @@ export class AuthRepository extends Effect.Service<AuthRepository>()("AuthReposi
     const listRecentAudit = (limit: number): Effect.Effect<ReadonlyArray<AuditEntry>> =>
       listRecentAuditSchema(limit).pipe(Effect.orDie, Effect.withSpan("AuthRepository.listRecentAudit"))
 
+    const listRecentAuditByUserSchema = SqlSchema.findAll({
+      Request: Schema.Tuple(UserId, Schema.Number),
+      Result: AuditEntry,
+      execute: ([userId, limit]) =>
+        sql`SELECT event, email, ip_address, created_at FROM audit_log WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT ${limit}`
+    })
+    const listRecentAuditByUser = (userId: UserId, limit: number): Effect.Effect<ReadonlyArray<AuditEntry>> =>
+      listRecentAuditByUserSchema([userId, limit]).pipe(
+        Effect.orDie,
+        Effect.withSpan("AuthRepository.listRecentAuditByUser")
+      )
+
     return {
       countUsers,
       countAdmins,
@@ -252,7 +264,8 @@ export class AuthRepository extends Effect.Service<AuthRepository>()("AuthReposi
       recordLoginAttempt,
       countRecentFailures,
       recordAudit,
-      listRecentAudit
+      listRecentAudit,
+      listRecentAuditByUser
     } as const
   }),
   dependencies: [SqliteLive]

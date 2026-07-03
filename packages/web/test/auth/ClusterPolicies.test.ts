@@ -13,12 +13,12 @@ describe("ClusterPolicies", () => {
       expect(canView("guest", "cluster", "selectEnv")).toBe(true)
     })
 
-    it("denies guest access to config settings", () => {
-      expect(canView("guest", "config", "settings")).toBe(false)
+    it("allows guest access to config settings", () => {
+      expect(canView("guest", "config", "settings")).toBe(true)
     })
 
-    it("denies readonly access to config settings", () => {
-      expect(canView("readonly", "config", "settings")).toBe(false)
+    it("allows readonly access to config settings", () => {
+      expect(canView("readonly", "config", "settings")).toBe(true)
     })
 
     it("allows admin access to config settings", () => {
@@ -34,13 +34,11 @@ describe("ClusterPolicies", () => {
   })
 
   describe("authorize", () => {
-    it("returns Forbidden for guest on config settings", async () => {
+    it("returns void for guest on config settings", async () => {
       const result = await Effect.runPromise(
-        authorize("guest", "config", "settings").pipe(Effect.flip)
+        authorize("guest", "config", "settings")
       )
-      expect(result).toBeInstanceOf(ForbiddenCls)
-      expect(result.entity).toBe("config")
-      expect(result.action).toBe("settings")
+      expect(result).toBeUndefined()
     })
 
     it("returns void for admin on cluster overview", async () => {

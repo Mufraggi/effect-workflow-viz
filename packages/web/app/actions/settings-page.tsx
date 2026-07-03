@@ -234,6 +234,7 @@ export function SettingsPage(handle: Handle<SettingsPageProps>) {
       tab,
       users
     } = handle.props
+    const isGuestOrReadonly = role === "guest" || role === "readonly"
     const envInfo = environments.map((e) => ({ id: e.id, name: e.name, isDefault: e.isDefault }))
 
     const tabLink = (id: string, label: string) => (
@@ -261,7 +262,7 @@ export function SettingsPage(handle: Handle<SettingsPageProps>) {
             {isAdmin && tabLink("users", "Users")}
             {isAdmin && tabLink("environments", "Environments")}
             {tabLink("api-keys", "API Keys")}
-            {isAdmin && tabLink("activity", "Activity")}
+            {tabLink("activity", "Activity")}
           </nav>
 
           {/* ── Account tab ── */}
@@ -427,7 +428,6 @@ export function SettingsPage(handle: Handle<SettingsPageProps>) {
             </div>
           )}
 
-          {/* ── Activity tab (admin only) ── */}
           {/* ── API Keys tab ── */}
           {tab === "api-keys" && (
             <div mix={s.card}>
@@ -445,10 +445,12 @@ export function SettingsPage(handle: Handle<SettingsPageProps>) {
                   <code mix={s.val} style={{ fontFamily: tk.fontMono, fontSize: ".82rem" }}>{k.keyPrefix}...</code>
                   <span mix={s.key}>created {k.createdAt}</span>
                   <span mix={s.key}>{k.lastUsedAt ? `last used ${k.lastUsedAt}` : "never used"}</span>
-                  <form method="post" action={routes.settings.href()}>
-                    <input type="hidden" name="keyId" value={k.id} />
-                    <button mix={[s.btnSm, s.btnDanger]} type="submit" name="intent" value="revoke-key">Revoke</button>
-                  </form>
+                  {!isGuestOrReadonly && (
+                    <form method="post" action={routes.settings.href()}>
+                      <input type="hidden" name="keyId" value={k.id} />
+                      <button mix={[s.btnSm, s.btnDanger]} type="submit" name="intent" value="revoke-key">Revoke</button>
+                    </form>
+                  )}
                 </div>
               ))}
 
@@ -458,28 +460,32 @@ export function SettingsPage(handle: Handle<SettingsPageProps>) {
                 </div>
               )}
 
-              <h3 mix={s.createTitle}>Create new key</h3>
-              <form mix={s.form} method="post" action={routes.settings.href()}>
-                <div mix={s.field}>
-                  <span mix={s.lbl}>Name</span>
-                  <input
-                    mix={s.input}
-                    type="text"
-                    name="name"
-                    placeholder="CI/CD"
-                    maxlength={100}
-                    minlength={1}
-                    required
-                  />
-                </div>
-                <button mix={[a.btn, a.btnPrimary]} type="submit" name="intent" value="create-key">
-                  Create key
-                </button>
-              </form>
+              {!isGuestOrReadonly && (
+                <>
+                  <h3 mix={s.createTitle}>Create new key</h3>
+                  <form mix={s.form} method="post" action={routes.settings.href()}>
+                    <div mix={s.field}>
+                      <span mix={s.lbl}>Name</span>
+                      <input
+                        mix={s.input}
+                        type="text"
+                        name="name"
+                        placeholder="CI/CD"
+                        maxlength={100}
+                        minlength={1}
+                        required
+                      />
+                    </div>
+                    <button mix={[a.btn, a.btnPrimary]} type="submit" name="intent" value="create-key">
+                      Create key
+                    </button>
+                  </form>
+                </>
+              )}
             </div>
           )}
 
-          {tab === "activity" && isAdmin && (
+          {tab === "activity" && (
             <div mix={s.card}>
               <h2 mix={s.cardTitle}>Recent activity</h2>
               {activity.length === 0
